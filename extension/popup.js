@@ -161,6 +161,7 @@ async function initPopup() {
         proBadge.textContent = "FREE";
         proBadge.className = "pro-badge";
         upgradeBtn.classList.remove("hidden");
+        upgradeBtn.innerHTML = '<svg class="crown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;margin-right:6px;display:inline-block;vertical-align:middle;"><path d="M2 4L5 12L12 6L19 12L22 4L17 19H7L2 4Z" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="3.5" r="1" fill="currentColor"/><circle cx="22" cy="3.5" r="1" fill="currentColor"/></svg><span style="vertical-align:middle;">Upgrade to Lifetime PRO</span>';
         
         const used = statusData.usageCount || 0;
         const limit = statusData.limit || 10;
@@ -184,6 +185,7 @@ async function initPopup() {
       quotaValue.textContent = "10 / 10 left";
       quotaBarFill.style.width = "100%";
       upgradeBtn.classList.remove("hidden");
+      upgradeBtn.innerHTML = '<svg class="crown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;margin-right:6px;display:inline-block;vertical-align:middle;"><path d="M2 4L5 12L12 6L19 12L22 4L17 19H7L2 4Z" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="3.5" r="1" fill="currentColor"/><circle cx="22" cy="3.5" r="1" fill="currentColor"/></svg><span style="vertical-align:middle;">Upgrade to Lifetime PRO</span>';
     }
   }
 
@@ -325,7 +327,7 @@ async function initPopup() {
     }
 
     upgradeBtn.disabled = true;
-    upgradeBtn.textContent = "Preparing Checkout...";
+    upgradeBtn.innerHTML = '<div class="spinner-small" style="width:12px;height:12px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;margin-right:6px;vertical-align:middle;"></div><span style="vertical-align:middle;">Preparing Checkout...</span>';
     showStatus("processing", "Connecting to Stripe secure billing portal...");
 
     try {
@@ -367,7 +369,7 @@ async function initPopup() {
       showStatus("error", `Billing Failed: ${err.message}`);
     } finally {
       upgradeBtn.disabled = false;
-      upgradeBtn.textContent = "Upgrade to PRO";
+      upgradeBtn.innerHTML = '<svg class="crown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;margin-right:6px;display:inline-block;vertical-align:middle;"><path d="M2 4L5 12L12 6L19 12L22 4L17 19H7L2 4Z" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="3.5" r="1" fill="currentColor"/><circle cx="22" cy="3.5" r="1" fill="currentColor"/></svg><span style="vertical-align:middle;">Upgrade to Lifetime PRO</span>';
     }
   });
 
