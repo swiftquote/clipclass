@@ -13,6 +13,9 @@ const firebaseConfig = {
   appId: "1:218415903735:web:09db277836f0b10810f4f2"
 };
 
+// Backend API Service Configuration (Set your deployed production domain here)
+const BACKEND_URL = "http://localhost:3001";
+
 // Initialize Firebase App & Auth with Try-Catch boundary
 let app = null;
 let auth = null;
@@ -135,7 +138,7 @@ async function initPopup() {
   async function refreshUserQuota(user) {
     try {
       const token = await user.getIdToken();
-      const statusResponse = await fetch("http://localhost:3001/api/user-status", {
+      const statusResponse = await fetch(`${BACKEND_URL}/api/user-status`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -333,7 +336,7 @@ async function initPopup() {
     try {
       const token = await currentUser.getIdToken();
 
-      const response = await fetch("http://localhost:3001/api/create-checkout-session", {
+      const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -414,7 +417,7 @@ async function initPopup() {
         gamifiedTrivia: toggleTrivia.checked
       };
 
-      const backendUrl = "http://localhost:3001/api/generate-kit";
+      const backendUrl = `${BACKEND_URL}/api/generate-kit`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); 
 
