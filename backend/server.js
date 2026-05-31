@@ -474,7 +474,7 @@ app.get('/api/mock-checkout', (req, res) => {
             <span>ClipClass Lifetime PRO (Early Adopters)</span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">SaaS Customer UID</span>
+            <span class="summary-label">Customer UID</span>
             <span style="font-family: monospace; font-size: 0.78rem;">\${uid.substring(0, 16)}...</span>
           </div>
           <div class="summary-row">
