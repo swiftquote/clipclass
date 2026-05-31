@@ -302,11 +302,11 @@ async function initPopup() {
     }
   });
 
-  // ELL translation limit warning change listener
+  // Worksheet translation limit warning change listener
   ellLanguageSelect.addEventListener("change", () => {
     const hasTranslation = ellLanguageSelect.value !== "None";
     if (userPlan === "free" && hasTranslation && translationUsageCount >= 1) {
-      showStatus("error", "ELL Translation is a premium feature. Free tier users are limited to exactly 1 translation workbook. Upgrade to PRO to translate unlimited classroom kits!");
+      showStatus("error", "Worksheet Translation is a premium feature. Free tier users are limited to exactly 1 translation workbook. Upgrade to PRO to translate unlimited classroom kits!");
       generateBtn.disabled = true;
     } else {
       // Restore state if valid
@@ -394,7 +394,7 @@ async function initPopup() {
 
     const hasTranslation = ellLanguageSelect.value !== "None";
     if (userPlan === "free" && hasTranslation && translationUsageCount >= 1) {
-      showStatus("error", "ELL Translation is a premium feature. Free tier users are limited to exactly 1 translation workbook. Upgrade to PRO to translate unlimited classroom kits!");
+      showStatus("error", "Worksheet Translation is a premium feature. Free tier users are limited to exactly 1 translation workbook. Upgrade to PRO to translate unlimited classroom kits!");
       return;
     }
 

@@ -110,36 +110,7 @@ export async function compileWorkbookPDF(data, meta) {
          .lineGap(3)
          .text(data.summary, 50, yPos, { width: 512, align: 'justify' });
 
-      yPos = doc.y + 8;
-
-      // Handle Dynamic Bilingual ELL Translation Box (if enabled)
-      const isELLActive = meta.translationLanguage && meta.translationLanguage !== "None" && data.translatedSummary;
-      if (isELLActive) {
-        // Compute Translated Text Height to dynamically scale padding
-        doc.font('Helvetica-Oblique').fontSize(9);
-        const translatedHeight = doc.heightOfString(data.translatedSummary, { width: 492 });
-        const boxHeight = translatedHeight + 24;
-
-        // Draw light grey container box
-        doc.rect(50, yPos, 512, boxHeight).fill('#F8FAFC');
-        doc.rect(50, yPos, 3, boxHeight).fill('#0EA5E9'); // Light blue side highlight
-
-        // Draw text inside the box
-        const languageLabel = meta.translationLanguage.toUpperCase();
-        doc.fillColor('#0284C7')
-           .font('Helvetica-Bold')
-           .fontSize(8.5)
-           .text(`DIFFERENTIATED SUPPORT  |  TRANSLATED SUMMARY (${languageLabel})`, 65, yPos + 8);
-
-        doc.fillColor('#475569')
-           .font('Helvetica-Oblique')
-           .fontSize(9)
-           .text(data.translatedSummary, 65, doc.y + 4, { width: 482, align: 'justify' });
-
-        yPos += boxHeight + 15;
-      } else {
-        yPos += 10;
-      }
+      yPos = doc.y + 15;
 
       // SECTION 2: QUESTIONS (Renamed from ACTIVE-LISTENING TIMELINE CHALLENGE)
       doc.fillColor('#1E293B')

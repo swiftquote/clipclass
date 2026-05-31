@@ -39,8 +39,7 @@ Your task is to analyze the provided chronological YouTube video transcript and 
 
 You must output a single, valid JSON object following this EXACT structure:
 {
-  "summary": "A clean 3-sentence student summary summarizing the core learning takeaways. Write at the target age group's exact reading comprehension level.",
-  "translatedSummary": "A clean 3-sentence translation of the summary into the selected language (e.g., Spanish, French, German, Mandarin Chinese, Arabic, Hindi, Vietnamese). Only populate this field if translationLanguage is NOT 'None'. If translationLanguage is 'None', output an empty string.",
+  "summary": "A clean 3-sentence student summary summarizing the core learning takeaways. Write at the target age group's exact reading comprehension level. If translationLanguage is NOT 'None', write this summary directly in the selected language.",
   "questions": [
     {
       "number": 1,
@@ -74,7 +73,7 @@ You must output a single, valid JSON object following this EXACT structure:
 CRITICAL RULES FOR CONTENT SYNTHESIS:
 1. Chronological Timeline: You MUST generate exactly 10 active-listening questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
 2. Exam-Style Question Quality: All 10 questions must be professional, "exam style" academic questions testing specific conceptual details, core factual lessons, or theoretical mechanics explained in the transcript. Avoid generic, useless, or meta-style questions (such as "What is the purpose of this video?", "Who is the speaker?", "What is the title of the video?"). Every question must focus strictly on the educational content being taught in the transcript.
-3. Translation/ELL Support: If translationLanguage is NOT 'None', you MUST populate the 'translatedSummary' field with a flawless translation in that exact requested language (e.g., Spanish, French, German, Mandarin, Arabic, Hindi, or Vietnamese). If translationLanguage is 'None', leave it as an empty string.
+3. Full Worksheet Translation: If translationLanguage is NOT 'None', you MUST generate ALL written text fields of the entire worksheet (including the 'summary', the question texts in 'questions' and 'teacherAnswers', the answer texts in 'teacherAnswers', and the entire 'triviaScript' fields: gameTitle, instructions, round questions, options, and answer/rationale) natively in that exact requested language (e.g., Spanish, French, German, Mandarin, Arabic, Hindi, or Vietnamese). Do not keep them in English. If translationLanguage is 'None', generate everything in English.
 4. Trivia Script: If gamifiedTrivia is true, you MUST populate the 'triviaScript' object with exactly 5 rounds of multiple-choice team trivia questions. If false, output an empty triviaScript structure (empty fields/empty rounds array).
 5. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload. Check that all double quotes are escaped correctly in fields.`;
 
