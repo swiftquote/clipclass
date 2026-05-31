@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClipClass Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" type="module"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <!-- Clean flat play triangle -->
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 5V19L19 12L8 5Z" fill="#FF6B62"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>ClipClass</h1>
+          <p class="tagline">Classroom Kit Studio</p>
+        </div>
+      </div>
+      <div class="pro-badge" id="pro-badge">FREE</div>
+    </header>
+
+    <!-- Loading Screen (Global Spinner before state is verified) -->
+    <div class="global-loader" id="global-loader">
+      <div class="spinner"></div>
+      <p>Verifying session...</p>
+    </div>
+
+    <!-- PANEL A: AUTHENTICATION PANEL -->
+    <div class="panel-view hidden" id="auth-panel">
+      <div class="auth-card">
+        <h2 class="auth-title" id="auth-view-title">Welcome to ClipClass</h2>
+        <p class="auth-subtitle" id="auth-view-desc">Register a free account to generate 10 printable student workbooks per week.</p>
+        
+        <div class="auth-inputs">
+          <div class="form-group">
+            <label for="auth-email" class="group-label">Teacher Email</label>
+            <input type="email" id="auth-email" placeholder="name@school.edu">
+          </div>
+          <div class="form-group">
+            <label for="auth-password" class="group-label">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••">
+          </div>
+        </div>
+
+        <button class="action-btn" id="auth-primary-btn">
+          <span class="btn-text">Create Free Account</span>
+        </button>
+
+        <p class="auth-toggle-link" id="auth-toggle-link">
+          Already have an account? <span class="link-text">Log In</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- PANEL B: MAIN SERVICE DASHBOARD -->
+    <div class="panel-view hidden" id="dashboard-panel">
+      <!-- Status Box -->
+      <section class="status-box" id="status-box">
+        <div class="status-indicator">
+          <div class="indicator-dot"></div>
+        </div>
+        <p class="status-text" id="detected-video-title">ACTIVE VIDEO DETECTED: Analyzing YouTube Page...</p>
+      </section>
+
+      <!-- Quota Dashboard Tracker -->
+      <div class="quota-container" id="quota-container">
+        <div class="quota-label-row">
+          <span class="quota-label">Generations Remaining</span>
+          <span class="quota-value" id="quota-value">10 / 10</span>
+        </div>
+        <div class="quota-bar-wrapper">
+          <div class="quota-bar-fill" id="quota-bar-fill" style="width: 100%"></div>
+        </div>
+        <button id="upgrade-btn" class="upgrade-btn hidden">Upgrade to PRO</button>
+      </div>
+
+      <!-- Form Section -->
+      <main class="app-body">
+        <!-- Dropdown -->
+        <div class="form-group">
+          <label for="age-group-select" class="group-label">Target Student Age Group</label>
+          <div class="select-wrapper">
+            <select id="age-group-select">
+              <option value="5-7">Ages 5-7 (Early Learning)</option>
+              <option value="8-10" selected>Ages 8-10 (Primary)</option>
+              <option value="11-13">Ages 11-13 (Middle School)</option>
+              <option value="14-16">Ages 14-16 (High School)</option>
+              <option value="17+">Ages 17+ (Advanced/College)</option>
+            </select>
+            <div class="select-arrow">
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1L5 5L9 1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Language Dropdown -->
+        <div class="form-group">
+          <label for="ell-language-select" class="group-label">ELL Support Translation</label>
+          <div class="select-wrapper">
+            <select id="ell-language-select">
+              <option value="None" selected>None (English Only)</option>
+              <option value="Spanish">Spanish (Español)</option>
+              <option value="French">French (Français)</option>
+              <option value="German">German (Deutsch)</option>
+              <option value="Mandarin">Mandarin Chinese (中文)</option>
+              <option value="Arabic">Arabic (العربية)</option>
+              <option value="Hindi">Hindi (हिन्दी)</option>
+              <option value="Vietnamese">Vietnamese (Tiếng Việt)</option>
+            </select>
+            <div class="select-arrow">
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1L5 5L9 1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toggles -->
+        <div class="toggles-section">
+          <h3 class="section-title">Premium Learning Enhancements</h3>
+
+          <!-- Trivia Script Toggle -->
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-label">Gamified Trivia Script</span>
+              <span class="toggle-desc">Appends an interactive 5-question team game.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-trivia">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <button class="action-btn" id="generate-btn">
+          <span class="btn-text">Generate Classroom Kit</span>
+        </button>
+
+        <!-- Feedback / Result Blocks (Flat Clean Notifications) -->
+        <div class="status-block hidden" id="status-block">
+          <p class="feedback-text" id="status-desc">Communicating with ClipClass AI Engines...</p>
+        </div>
+      </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-meta">
+        <p>ClipClass SaaS &copy; 2026. Ready-to-print learning assets.</p>
+        <button id="signout-btn" class="signout-btn hidden">Sign Out</button>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
