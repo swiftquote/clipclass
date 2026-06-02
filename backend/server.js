@@ -207,6 +207,121 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'healthy', databaseMode: isFirebaseInitialized ? 'firestore' : 'in-memory-fallback' });
 });
 
+// Public Privacy Policy HTML Page
+app.get('/privacy-policy', (req, res) => {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>ClipClass Privacy Policy</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+      <style>
+        body {
+          font-family: 'Inter', sans-serif;
+          line-height: 1.6;
+          color: #334155;
+          max-width: 680px;
+          margin: 40px auto;
+          padding: 0 20px;
+          background-color: #f8fafc;
+        }
+        .container {
+          background-color: #ffffff;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+          border: 1px solid #f1f5f9;
+        }
+        h1 {
+          color: #0f172a;
+          font-size: 1.8rem;
+          font-weight: 800;
+          margin-bottom: 8px;
+        }
+        .date {
+          color: #64748b;
+          font-size: 0.88rem;
+          margin-bottom: 24px;
+        }
+        h2 {
+          color: #1e293b;
+          font-size: 1.25rem;
+          font-weight: 700;
+          margin-top: 28px;
+          margin-bottom: 12px;
+        }
+        p, li {
+          font-size: 0.95rem;
+        }
+        ul {
+          padding-left: 20px;
+        }
+        li {
+          margin-bottom: 8px;
+        }
+        footer {
+          margin-top: 40px;
+          text-align: center;
+          font-size: 0.8rem;
+          color: #94a3b8;
+        }
+        a {
+          color: #FF6B62;
+          text-decoration: none;
+          font-weight: 600;
+        }
+        a:hover {
+          text-decoration: underline;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>ClipClass Privacy Policy</h1>
+        <div class="date">Last Updated: June 2, 2026</div>
+        
+        <p>At ClipClass, we take your data privacy and security seriously. This Privacy Policy details how we collect, process, and handle user information for the ClipClass Chrome extension.</p>
+        
+        <h2>1. Information We Collect</h2>
+        <p>ClipClass collects and processes the following information strictly to provide and maintain our service:</p>
+        <ul>
+          <li><strong>Authentication Information:</strong> Your email address and unique user ID (UID) are processed securely via Google Firebase Authentication when you register or sign in.</li>
+          <li><strong>Usage Activity:</strong> We track the count of educational worksheets generated and translations requested. This is used solely to enforce free-tier limits and manage subscription access levels.</li>
+        </ul>
+        
+        <h2>2. How Data is Used</h2>
+        <p>We use the collected data exclusively to:</p>
+        <ul>
+          <li>Authenticate your user session and securely load your workspace.</li>
+          <li>Track and enforce your weekly worksheet generation limits.</li>
+          <li>Deliver compiled PDF workbooks to your device.</li>
+        </ul>
+        
+        <h2>3. Data Sharing & Security</h2>
+        <ul>
+          <li>We do not sell, rent, trade, or share your personal data with any third parties.</li>
+          <li>All communication between the extension, Firebase, and our servers is encrypted in transit via SSL/HTTPS.</li>
+        </ul>
+        
+        <h2>4. Your Rights</h2>
+        <p>You can request the deletion of your account and associated usage logs at any time by contacting us.</p>
+        
+        <h2>5. Contact Us</h2>
+        <p>For support or privacy inquiries, please contact us at: <a href="mailto:support@clipclass.com">support@clipclass.com</a></p>
+      </div>
+      <footer>
+        &copy; 2026 ClipClass. All rights reserved.
+      </footer>
+    </body>
+    </html>
+  `;
+  res.send(html);
+});
+
 // ==========================================
 // USER STATUS & QUOTA ENDPOINT
 // ==========================================

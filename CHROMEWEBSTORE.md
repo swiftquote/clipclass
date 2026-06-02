@@ -47,10 +47,11 @@ English
 
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
-| Store Icon | 128×128 PNG | ⬜ Not created | `icons/icon-128.png` |
-| Screenshot 1 (Dashboard) | 1280×800 | ⬜ Not created | `screenshots/dashboard.png` |
-| Screenshot 2 (Generated PDF) | 1280×800 | ⬜ Not created | `screenshots/pdf-preview.png` |
-| Small Promo Tile | 440×280 | ⬜ Not created | `promos/promo-small.png` |
+| Store Icon | 128×128 PNG | ✅ Created | `icons/icon-128.png` |
+| Screenshot 1 (Dashboard) | 1280×800 | ✅ Created | `screenshots/dashboard.png` |
+| Screenshot 2 (Generated PDF) | 1280×800 | ✅ Created | `screenshots/pdf-preview.png` |
+| Small Promo Tile | 440×280 | ✅ Created | `promos/promo-small.png` |
+| Marquee Promo Tile | 1400×560 | ✅ Created | `promos/promo-marquee.png` |
 
 ---
 
