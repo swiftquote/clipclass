@@ -14,7 +14,7 @@ const firebaseConfig = {
 };
 
 // Backend API Service Configuration (Set your deployed production domain here)
-const BACKEND_URL = "http://localhost:3001";
+const BACKEND_URL = "https://clipclass-1.onrender.com";
 
 // Initialize Firebase App & Auth with Try-Catch boundary
 let app = null;
