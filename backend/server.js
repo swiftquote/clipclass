@@ -311,7 +311,7 @@ app.get('/privacy-policy', (req, res) => {
         <p>You can request the deletion of your account and associated usage logs at any time by contacting us.</p>
         
         <h2>5. Contact Us</h2>
-        <p>For support or privacy inquiries, please contact us at: <a href="mailto:support@clipclass.com">support@clipclass.com</a></p>
+        <p>For support or privacy inquiries, please contact us at: <a href="mailto:mismail17.308@gmail.com">mismail17.308@gmail.com</a></p>
       </div>
       <footer>
         &copy; 2026 ClipClass. All rights reserved.
