@@ -26,28 +26,38 @@ let db = null;
 let isFirebaseInitialized = false;
 
 try {
-  // Look for service account credentials file
-  const serviceAccountPath = path.resolve('firebase-service-account.json');
-  
-  if (fs.existsSync(serviceAccountPath)) {
-    const rawData = fs.readFileSync(serviceAccountPath);
-    const serviceAccount = JSON.parse(rawData);
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    db = admin.firestore();
+    isFirebaseInitialized = true;
+    console.log("✅ Secure Firebase Admin SDK & Cloud Firestore initialized successfully from Environment Variable!");
+  } else {
+    // Look for service account credentials file
+    const serviceAccountPath = path.resolve('firebase-service-account.json');
     
-    // Initialize if key is not empty template
-    if (serviceAccount.private_key_id && !serviceAccount.private_key_id.includes("PASTE_YOUR")) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      db = admin.firestore();
-      isFirebaseInitialized = true;
-      console.log("✅ Secure Firebase Admin SDK & Cloud Firestore initialized successfully!");
+    if (fs.existsSync(serviceAccountPath)) {
+      const rawData = fs.readFileSync(serviceAccountPath);
+      const serviceAccount = JSON.parse(rawData);
+      
+      // Initialize if key is not empty template
+      if (serviceAccount.private_key_id && !serviceAccount.private_key_id.includes("PASTE_YOUR")) {
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+        db = admin.firestore();
+        isFirebaseInitialized = true;
+        console.log("✅ Secure Firebase Admin SDK & Cloud Firestore initialized successfully from file!");
+      } else {
+        console.warn("⚠️  firebase-service-account.json detected but contains default template keys.");
+        console.warn("➡️  Activating Resilient In-Memory Local Database Fallback for local evaluation.");
+      }
     } else {
-      console.warn("⚠️  firebase-service-account.json detected but contains default template keys.");
+      console.warn("⚠️  firebase-service-account.json credentials file not found.");
       console.warn("➡️  Activating Resilient In-Memory Local Database Fallback for local evaluation.");
     }
-  } else {
-    console.warn("⚠️  firebase-service-account.json credentials file not found.");
-    console.warn("➡️  Activating Resilient In-Memory Local Database Fallback for local evaluation.");
   }
 } catch (err) {
   console.error("❌ Firebase Admin initialization yielded an exception:", err.message);
