@@ -38,32 +38,32 @@ async function runLocalVerification() {
         {
           number: 1,
           timestamp: "00:12",
-          question: "According to the video, what are the three basic subatomic particles that make up an atom?",
-          studentAnswerLines: 2
+          question: "Which of the following subatomic particles has a positive charge? A) Electron B) Proton C) Neutron D) Photon",
+          studentAnswerLines: 1
         },
         {
           number: 2,
           timestamp: "01:05",
-          question: "Where in the atom is the nucleus located, and which particles does it contain?",
-          studentAnswerLines: 2
+          question: "The center core of an atom, containing protons and neutrons, is called the ___________.",
+          studentAnswerLines: 1
         },
         {
           number: 3,
           timestamp: "01:45",
-          question: "What is the electric charge of an electron, and where are they found within the atom?",
+          question: "Electrons carry a ___________ electrical charge and orbit the nucleus in regions called ___________.",
           studentAnswerLines: 2
         },
         {
           number: 4,
           timestamp: "02:20",
           question: "Why do electrons orbit the nucleus rather than fly off into space?",
-          studentAnswerLines: 2
+          studentAnswerLines: 3
         },
         {
           number: 5,
           timestamp: "03:10",
-          question: "What happens when atoms share or exchange electrons with neighboring atoms?",
-          studentAnswerLines: 2
+          question: "What happens when atoms share or exchange electrons with neighboring atoms? Explain in detail.",
+          studentAnswerLines: 4
         }
       ],
       teacherAnswers: [

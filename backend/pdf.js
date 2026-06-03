@@ -122,9 +122,16 @@ export async function compileWorkbookPDF(data, meta) {
 
       // Draw chronological questions without timestamps
       data.questions.forEach((q, idx) => {
-        // Prevent layout collision or running off page by checking heights
-        // Budgeting for 4 lines of answers (roughly 100 points of vertical space)
-        if (yPos > 600) {
+        const linesCount = typeof q.studentAnswerLines === 'number' ? q.studentAnswerLines : 3;
+        const answerHeight = linesCount * 24;
+        
+        // Calculate estimated height needed (question text + answer lines + padding)
+        doc.font('Helvetica').fontSize(9.5);
+        const questionHeight = doc.heightOfString(q.question || '', { width: 482 });
+        const totalHeightNeeded = questionHeight + answerHeight + 25;
+
+        // Prevent layout collision or running off page by checking heights dynamically
+        if (yPos + totalHeightNeeded > 700) {
           doc.addPage();
           doc.rect(50, 40, 512, 4).fill('#FF4B2B');
           yPos = 60;
@@ -143,8 +150,10 @@ export async function compileWorkbookPDF(data, meta) {
 
         yPos = doc.y + 4;
         
-        // Student Workbook: Write-in section contains exactly four empty lines of space
-        yPos = drawStudentAnswerLines(doc, yPos, 4);
+        // Student Workbook: Write-in section contains dynamic lines of space
+        if (linesCount > 0) {
+          yPos = drawStudentAnswerLines(doc, yPos, linesCount);
+        }
         yPos += 18;
       });
 

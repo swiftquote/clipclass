@@ -34,7 +34,7 @@ export async function generateWorksheetContent({ timedSegments, ageGroup, transl
   const selectedSpec = ageSpecs[ageGroup] || ageSpecs["8-10"];
 
   // Formulate the strict system guidance instructions
-  const systemPrompt = `You are an elite, pedagogical curriculum design expert specialized in building highly engaging, ready-to-print student worksheets for global educators.
+    const systemPrompt = `You are an elite, pedagogical curriculum design expert specialized in building highly engaging, ready-to-print student worksheets for global educators.
 Your task is to analyze the provided chronological YouTube video transcript and synthesize a structured, top-tier classroom workbook tailored precisely for: Target Audience: ${ageGroup} (${selectedSpec}).
 
 You must output a single, valid JSON object following this EXACT structure:
@@ -44,15 +44,15 @@ You must output a single, valid JSON object following this EXACT structure:
     {
       "number": 1,
       "timestamp": "MM:SS",
-      "question": "A student active-listening question. Must correspond chronologically to this timeline of the video.",
-      "studentAnswerLines": 2
+      "question": "A student question text. It could be multiple choice, fill-in-the-blank, or open-ended.",
+      "studentAnswerLines": 1
     }
   ],
   "teacherAnswers": [
     {
       "number": 1,
       "timestamp": "MM:SS",
-      "question": "The matching active-listening question text.",
+      "question": "The matching question text (including any choices or blanks).",
       "answer": "A detailed, complete, and highly educational teacher model answer customized to the selected student age level."
     }
   ],
@@ -71,7 +71,11 @@ You must output a single, valid JSON object following this EXACT structure:
 }
 
 CRITICAL RULES FOR CONTENT SYNTHESIS:
-1. Chronological Timeline: You MUST generate exactly 10 active-listening questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
+1. Chronological Timeline and Question Variety: You MUST generate exactly 10 questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
+   You MUST vary the question types to include a rich mix of the following:
+   - 3 to 4 Multiple-Choice Questions (MCQ): Format option text inline inside the "question" string (e.g. "What is the primary gas in Earth's atmosphere? A) Oxygen B) Nitrogen C) Carbon Dioxide D) Hydrogen"). For MCQs, set "studentAnswerLines" to 1.
+   - 3 Fill-in-the-Blank Questions: Phrase the question containing a clear blank space (e.g. "The process by which plants make food using sunlight is called ___________."). For these, set "studentAnswerLines" to 1 or 2.
+   - 3 to 4 Open-Ended / Short Answer Questions: Traditional comprehension or analysis questions (e.g. "Explain how the greenhouse effect keeps the Earth warm."). For these, set "studentAnswerLines" to 3 or 4.
 2. Exam-Style Question Quality: All 10 questions must be professional, "exam style" academic questions testing specific conceptual details, core factual lessons, or theoretical mechanics explained in the transcript. Avoid generic, useless, or meta-style questions (such as "What is the purpose of this video?", "Who is the speaker?", "What is the title of the video?"). Every question must focus strictly on the educational content being taught in the transcript.
 3. Full Worksheet Translation: If translationLanguage is NOT 'None', you MUST generate ALL written text fields of the entire worksheet (including the 'summary', the question texts in 'questions' and 'teacherAnswers', the answer texts in 'teacherAnswers', and the entire 'triviaScript' fields: gameTitle, instructions, round questions, options, and answer/rationale) natively in that exact requested language (e.g., Spanish, French, German, Mandarin, Arabic, Hindi, or Vietnamese). Do not keep them in English. If translationLanguage is 'None', generate everything in English.
 4. Trivia Script: If gamifiedTrivia is true, you MUST populate the 'triviaScript' object with exactly 5 rounds of multiple-choice team trivia questions. If false, output an empty triviaScript structure (empty fields/empty rounds array).
