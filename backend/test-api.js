@@ -50,7 +50,7 @@ async function runLocalVerification() {
         {
           number: 3,
           timestamp: "01:45",
-          question: "Electrons carry a ___________ electrical charge and orbit the nucleus in regions called ___________.",
+          question: "True or False: Electrons are much larger and heavier than protons. Explain why you chose this answer.",
           studentAnswerLines: 2
         },
         {
