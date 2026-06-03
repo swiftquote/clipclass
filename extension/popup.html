@@ -127,6 +127,24 @@
           </div>
         </div>
 
+        <!-- Number of Questions (PRO Only) -->
+        <div class="form-group pro-locked" id="questions-count-group">
+          <label for="questions-count-select" class="group-label">Number of Questions <span class="pro-lock-tag">PRO</span></label>
+          <div class="select-wrapper">
+            <select id="questions-count-select" disabled>
+              <option value="5">5 Questions</option>
+              <option value="10" selected>10 Questions (Default)</option>
+              <option value="15">15 Questions</option>
+              <option value="20">20 Questions</option>
+            </select>
+            <div class="select-arrow">
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1L5 5L9 1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
         <!-- Toggles -->
         <div class="toggles-section">
           <h3 class="section-title">Premium Learning Enhancements</h3>
@@ -139,6 +157,18 @@
             </div>
             <label class="switch">
               <input type="checkbox" id="toggle-trivia">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Timestamps Toggle (PRO Only) -->
+          <div class="toggle-row pro-locked" id="toggle-timestamps-row">
+            <div class="toggle-info">
+              <span class="toggle-label">Include Timestamps <span class="pro-lock-tag">PRO</span></span>
+              <span class="toggle-desc">Show video timestamps on the student worksheet.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-timestamps" disabled>
               <span class="slider"></span>
             </label>
           </div>

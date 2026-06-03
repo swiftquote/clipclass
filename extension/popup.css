@@ -656,3 +656,33 @@ input:checked + .slider:before {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* PRO Feature Locking Styles */
+.pro-lock-tag {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: #FBBF24;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-left: 6px;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.pro-locked {
+  opacity: 0.5;
+  position: relative;
+  transition: var(--transition);
+}
+
+.pro-locked label,
+.pro-locked span,
+.pro-locked select,
+.pro-locked input {
+  cursor: not-allowed !important;
+}
+

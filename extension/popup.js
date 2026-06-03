@@ -59,6 +59,10 @@ async function initPopup() {
   const ageGroupSelect = document.getElementById("age-group-select");
   const ellLanguageSelect = document.getElementById("ell-language-select");
   const toggleTrivia = document.getElementById("toggle-trivia");
+  const questionsCountSelect = document.getElementById("questions-count-select");
+  const questionsCountGroup = document.getElementById("questions-count-group");
+  const toggleTimestamps = document.getElementById("toggle-timestamps");
+  const toggleTimestampsRow = document.getElementById("toggle-timestamps-row");
   
   const quotaValue = document.getElementById("quota-value");
   const quotaBarFill = document.getElementById("quota-bar-fill");
@@ -160,12 +164,26 @@ async function initPopup() {
         quotaValue.textContent = "Unlimited";
         quotaBarFill.style.width = "100%";
         upgradeBtn.classList.add("hidden");
+
+        // Unlock PRO features
+        questionsCountSelect.disabled = false;
+        questionsCountGroup.classList.remove("pro-locked");
+        toggleTimestamps.disabled = false;
+        toggleTimestampsRow.classList.remove("pro-locked");
       } else {
         proBadge.textContent = "FREE";
         proBadge.className = "pro-badge";
         upgradeBtn.classList.remove("hidden");
         upgradeBtn.innerHTML = '<svg class="crown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;margin-right:6px;display:inline-block;vertical-align:middle;"><path d="M2 4L5 12L12 6L19 12L22 4L17 19H7L2 4Z" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="3.5" r="1" fill="currentColor"/><circle cx="22" cy="3.5" r="1" fill="currentColor"/></svg><span style="vertical-align:middle;">Upgrade to Lifetime PRO</span>';
         
+        // Lock PRO features
+        questionsCountSelect.value = "10";
+        questionsCountSelect.disabled = true;
+        questionsCountGroup.classList.add("pro-locked");
+        toggleTimestamps.checked = false;
+        toggleTimestamps.disabled = true;
+        toggleTimestampsRow.classList.add("pro-locked");
+
         const used = statusData.usageCount || 0;
         const limit = statusData.limit || 10;
         const remaining = Math.max(0, limit - used);
@@ -189,6 +207,14 @@ async function initPopup() {
       quotaBarFill.style.width = "100%";
       upgradeBtn.classList.remove("hidden");
       upgradeBtn.innerHTML = '<svg class="crown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;margin-right:6px;display:inline-block;vertical-align:middle;"><path d="M2 4L5 12L12 6L19 12L22 4L17 19H7L2 4Z" fill="currentColor"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="3.5" r="1" fill="currentColor"/><circle cx="22" cy="3.5" r="1" fill="currentColor"/></svg><span style="vertical-align:middle;">Upgrade to Lifetime PRO</span>';
+      
+      // Lock PRO features on fallback
+      questionsCountSelect.value = "10";
+      questionsCountSelect.disabled = true;
+      questionsCountGroup.classList.add("pro-locked");
+      toggleTimestamps.checked = false;
+      toggleTimestamps.disabled = true;
+      toggleTimestampsRow.classList.add("pro-locked");
     }
   }
 
@@ -414,7 +440,9 @@ async function initPopup() {
         channelName: activeVideoMetadata.channelName,
         ageGroup: ageGroupSelect.value,
         translationLanguage: ellLanguageSelect.value,
-        gamifiedTrivia: toggleTrivia.checked
+        gamifiedTrivia: toggleTrivia.checked,
+        questionsCount: parseInt(questionsCountSelect.value, 10) || 10,
+        showTimestamps: toggleTimestamps.checked
       };
 
       const backendUrl = `${BACKEND_URL}/api/generate-kit`;

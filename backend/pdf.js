@@ -120,14 +120,24 @@ export async function compileWorkbookPDF(data, meta) {
 
       yPos = doc.y + 12;
 
-      // Draw chronological questions without timestamps
+      // Draw chronological questions with conditional timestamps
       data.questions.forEach((q, idx) => {
         const linesCount = typeof q.studentAnswerLines === 'number' ? q.studentAnswerLines : 3;
         const answerHeight = linesCount * 24;
         
+        doc.font('Helvetica-Bold').fontSize(9.5);
+        let label = `Q${idx + 1}.`;
+        if (meta.showTimestamps && q.timestamp) {
+          label = `Q${idx + 1}. [${q.timestamp}]`;
+        }
+
+        const labelWidth = doc.widthOfString(label + '  ');
+        const questionX = Math.max(80, 50 + labelWidth);
+        const questionWidth = 562 - questionX;
+
         // Calculate estimated height needed (question text + answer lines + padding)
         doc.font('Helvetica').fontSize(9.5);
-        const questionHeight = doc.heightOfString(q.question || '', { width: 482 });
+        const questionHeight = doc.heightOfString(q.question || '', { width: questionWidth });
         const totalHeightNeeded = questionHeight + answerHeight + 25;
 
         // Prevent layout collision or running off page by checking heights dynamically
@@ -140,13 +150,11 @@ export async function compileWorkbookPDF(data, meta) {
         doc.fillColor('#1E293B')
            .font('Helvetica-Bold')
            .fontSize(9.5)
-           .text(`Q${idx + 1}.`, 50, yPos);
-
-        // Completely removed chronological timestamps [MM:SS] from student question drawing block
+           .text(label, 50, yPos);
 
         doc.fillColor('#334155')
            .font('Helvetica')
-           .text(q.question, 80, yPos, { width: 482 }); // Restructured wider width layout
+           .text(q.question, questionX, yPos, { width: questionWidth });
 
         yPos = doc.y + 4;
         
@@ -209,21 +217,35 @@ export async function compileWorkbookPDF(data, meta) {
       teacherY = doc.y + 10;
 
       data.teacherAnswers.forEach((ans, idx) => {
-        if (teacherY > 680) {
+        doc.font('Helvetica-Bold').fontSize(9.5);
+        let label = `Q${idx + 1}.`;
+        if (meta.showTimestamps && ans.timestamp) {
+          label = `Q${idx + 1}. [${ans.timestamp}]`;
+        }
+
+        const labelWidth = doc.widthOfString(label + '  ');
+        const questionX = Math.max(80, 50 + labelWidth);
+        const questionWidth = 562 - questionX;
+
+        // Estimate question height to check page overflow early
+        doc.font('Helvetica').fontSize(9.5);
+        const questionHeight = doc.heightOfString(ans.question || '', { width: questionWidth });
+        const answerHeight = doc.heightOfString(ans.answer || '', { width: questionWidth - 30 });
+        
+        if (teacherY + questionHeight + answerHeight + 40 > 720) {
           doc.addPage();
           doc.rect(50, 40, 512, 4).fill('#EF4444');
           teacherY = 60;
         }
 
-        // Question header - Timestamps [MM:SS] completely stripped
         doc.fillColor('#0F172A')
            .font('Helvetica-Bold')
            .fontSize(9.5)
-           .text(`Q${idx + 1}.`, 50, teacherY);
+           .text(label, 50, teacherY);
 
         doc.fillColor('#475569')
            .font('Helvetica')
-           .text(ans.question, 80, teacherY, { width: 482 });
+           .text(ans.question, questionX, teacherY, { width: questionWidth });
 
         teacherY = doc.y + 5;
 
@@ -231,11 +253,11 @@ export async function compileWorkbookPDF(data, meta) {
         doc.fillColor('#0F172A')
            .font('Helvetica-Bold')
            .fontSize(9.5)
-           .text('Answer: ', 80, teacherY, { continued: true });
+           .text('Answer: ', questionX, teacherY, { continued: true });
 
         doc.fillColor('#334155')
            .font('Helvetica')
-           .text(ans.answer, { width: 402, align: 'justify' });
+           .text(ans.answer, { width: questionWidth - 50, align: 'justify' });
 
         teacherY = doc.y + 14;
       });

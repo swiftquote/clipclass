@@ -683,7 +683,7 @@ app.post('/api/mock-checkout-success', async (req, res) => {
 // ==========================================
 app.post('/api/generate-kit', authenticateUser, async (req, res) => {
   const { uid, email } = req.user;
-  const { videoId, videoTitle, channelName, ageGroup, translationLanguage, gamifiedTrivia } = req.body;
+  const { videoId, videoTitle, channelName, ageGroup, translationLanguage, gamifiedTrivia, questionsCount, showTimestamps } = req.body;
 
   // 1. Inputs Validations
   if (!videoId) {
@@ -761,7 +761,20 @@ app.post('/api/generate-kit', authenticateUser, async (req, res) => {
       });
     }
 
-    console.log(`[Quota Checked] Generating kit for user ${uid} (${plan} plan). Current Usage: ${usageCount}/10`);
+    // Enforce PRO-only limitations
+    let finalQuestionsCount = 10;
+    let finalShowTimestamps = false;
+
+    if (plan === "pro") {
+      if (typeof questionsCount === 'number' && [5, 10, 15, 20].includes(questionsCount)) {
+        finalQuestionsCount = questionsCount;
+      }
+      if (typeof showTimestamps === 'boolean') {
+        finalShowTimestamps = showTimestamps;
+      }
+    }
+
+    console.log(`[Quota Checked] Generating kit for user ${uid} (${plan} plan). Questions: ${finalQuestionsCount}, Timestamps: ${finalShowTimestamps}. Current Usage: ${usageCount}/10`);
 
     // 4. Fetch Subtitles/Transcripts
     console.log(`Step 1: Extracting transcript for Video ${videoId}...`);
@@ -790,7 +803,8 @@ app.post('/api/generate-kit', authenticateUser, async (req, res) => {
         timedSegments: transcriptData.timedSegments,
         ageGroup: ageGroup,
         translationLanguage: translationLanguage || "None",
-        gamifiedTrivia: !!gamifiedTrivia
+        gamifiedTrivia: !!gamifiedTrivia,
+        questionsCount: finalQuestionsCount
       });
     } catch (aiErr) {
       console.error("AI Generation Layer failed:", aiErr);
@@ -809,7 +823,8 @@ app.post('/api/generate-kit', authenticateUser, async (req, res) => {
         channelName: channelName || "Educational Creator",
         ageGroup: ageGroup,
         translationLanguage: translationLanguage || "None",
-        gamifiedTrivia: !!gamifiedTrivia
+        gamifiedTrivia: !!gamifiedTrivia,
+        showTimestamps: finalShowTimestamps
       };
 
       pdfBuffer = await compileWorkbookPDF(aiContent, meta);

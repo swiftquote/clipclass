@@ -144,7 +144,8 @@ async function runLocalVerification() {
       channelName: "Kurzgesagt – In a Nutshell",
       ageGroup: "8-10",
       ellSupport: true,      // Spanish summary enabled
-      gamifiedTrivia: true  // Trivia rounds enabled
+      gamifiedTrivia: true,  // Trivia rounds enabled
+      showTimestamps: true   // Enable timestamps for testing layout
     };
 
     const pdfBuffer = await compileWorkbookPDF(simulatedAiPayload, mockMeta);
