@@ -33,15 +33,37 @@ export async function generateWorksheetContent({ timedSegments, ageGroup, transl
 
   const selectedSpec = ageSpecs[ageGroup] || ageSpecs["8-10"];
 
-  const questionVarietyInstruction = `generate exactly ${questionsCount} questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
-   
-   Pedagogical Selection Guide:
-   - Choose the most appropriate question formats dynamically based on the subject matter of the video (e.g. for mathematics, science, or physics, prioritize calculation exercises, formula application, and short equation solving; for history or reading comprehension, prioritize analytical explanation, chronological sequencing, or conceptual discussion).
-   - Do NOT force awkward Fill-in-the-Blank or True/False questions if they do not fit the topic. Instead, select from these types naturally to build the best overall learning worksheet:
-     1. Multiple-Choice Questions (MCQ): Format option choices inline inside the "question" string (e.g., "What is the primary gas in Earth's atmosphere? A) Oxygen B) Nitrogen C) Carbon Dioxide D) Hydrogen"). Set "studentAnswerLines" to 1.
-     2. Fill-in-the-Blank (FIB) Questions: Include a clear blank space (e.g., "The process by which plants make food using sunlight is called ___________."). Set "studentAnswerLines" to 1 or 2.
-     3. True/False "Explain Why" Questions: A True/False question that explicitly asks the student to explain the reasoning for their choice (e.g., "True or False: Electrons are heavier than protons. Explain why you chose this answer."). Set "studentAnswerLines" to 2 or 3.
-     4. Open-Ended / Short-Answer Questions: Traditional comprehension or analysis questions (e.g., "Explain how the greenhouse effect keeps the Earth warm."). Set "studentAnswerLines" to 3 or 4.`;
+  let questionVarietyInstruction = "";
+  if (questionsCount === 5) {
+    questionVarietyInstruction = `generate exactly 5 questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
+   You MUST vary the question types to follow this exact distribution across the 5 questions:
+   - Exactly 1 Multiple-Choice Question (MCQ): Format option choices inline inside the "question" string (e.g., "What is the primary gas in Earth's atmosphere? A) Oxygen B) Nitrogen C) Carbon Dioxide D) Hydrogen"). Set "studentAnswerLines" to 1.
+   - Exactly 1 Fill-in-the-Blank (FIB) Question: Include a clear blank space (e.g., "The process by which plants make food using sunlight is called ___________."). Set "studentAnswerLines" to 1 or 2.
+   - Exactly 1 True/False "Explain Why" Question: A True/False question that explicitly asks the student to explain the reasoning for their choice (e.g., "True or False: Electrons are heavier than protons. Explain why you chose this answer."). Set "studentAnswerLines" to 2 or 3.
+   - The remaining 2 questions must be Open-Ended / Short-Answer Questions: Traditional comprehension or analysis questions (e.g., "Explain how the greenhouse effect keeps the Earth warm."). Set "studentAnswerLines" to 3 or 4.`;
+  } else if (questionsCount === 15) {
+    questionVarietyInstruction = `generate exactly 15 questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
+   You MUST vary the question types to follow this exact distribution across the 15 questions:
+   - Exactly 2 Multiple-Choice Questions (MCQ): Format option choices inline inside the "question" string (e.g., "What is the primary gas in Earth's atmosphere? A) Oxygen B) Nitrogen C) Carbon Dioxide D) Hydrogen"). Set "studentAnswerLines" to 1.
+   - Exactly 2 Fill-in-the-Blank (FIB) Questions: Include a clear blank space (e.g., "The process by which plants make food using sunlight is called ___________."). Set "studentAnswerLines" to 1 or 2.
+   - Exactly 2 or 3 True/False "Explain Why" Questions: A True/False question that explicitly asks the student to explain the reasoning for their choice (e.g., "True or False: Electrons are heavier than protons. Explain why you chose this answer."). Set "studentAnswerLines" to 2 or 3.
+   - The remaining 8 to 9 questions must be Open-Ended / Short-Answer Questions: Traditional comprehension or analysis questions (e.g., "Explain how the greenhouse effect keeps the Earth warm."). Set "studentAnswerLines" to 3 or 4.`;
+  } else if (questionsCount === 20) {
+    questionVarietyInstruction = `generate exactly 20 questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
+   You MUST vary the question types to follow this exact distribution across the 20 questions:
+   - Exactly 3 Multiple-Choice Questions (MCQ): Format option choices inline inside the "question" string (e.g., "What is the primary gas in Earth's atmosphere? A) Oxygen B) Nitrogen C) Carbon Dioxide D) Hydrogen"). Set "studentAnswerLines" to 1.
+   - Exactly 3 Fill-in-the-Blank (FIB) Questions: Include a clear blank space (e.g., "The process by which plants make food using sunlight is called ___________."). Set "studentAnswerLines" to 1 or 2.
+   - Exactly 3 or 4 True/False "Explain Why" Questions: A True/False question that explicitly asks the student to explain the reasoning for their choice (e.g., "True or False: Electrons are heavier than protons. Explain why you chose this answer."). Set "studentAnswerLines" to 2 or 3.
+   - The remaining 10 to 11 questions must be Open-Ended / Short-Answer Questions: Traditional comprehension or analysis questions (e.g., "Explain how the greenhouse effect keeps the Earth warm."). Set "studentAnswerLines" to 3 or 4.`;
+  } else {
+    // Default to 10
+    questionVarietyInstruction = `generate exactly 10 questions and matching teacher answers, ordered chronologically according to the video timeline (from start to finish). The "timestamp" field must exactly match the timestamp in the transcript where the answer is explained (e.g., 01:15, 03:40).
+   You MUST vary the question types to follow this exact distribution across the 10 questions:
+   - Exactly 1 Multiple-Choice Question (MCQ): Format option choices inline inside the "question" string (e.g., "What is the primary gas in Earth's atmosphere? A) Oxygen B) Nitrogen C) Carbon Dioxide D) Hydrogen"). Set "studentAnswerLines" to 1.
+   - Exactly 1 Fill-in-the-Blank (FIB) Question: Include a clear blank space (e.g., "The process by which plants make food using sunlight is called ___________."). Set "studentAnswerLines" to 1 or 2.
+   - Exactly 1 or 2 True/False "Explain Why" Questions: A True/False question that explicitly asks the student to explain the reasoning for their choice (e.g., "True or False: Electrons are heavier than protons. Explain why you chose this answer."). Set "studentAnswerLines" to 2 or 3.
+   - The remaining 6 to 7 questions must be Open-Ended / Short-Answer Questions: Traditional comprehension or analysis questions (e.g., "Explain how the greenhouse effect keeps the Earth warm."). Set "studentAnswerLines" to 3 or 4.`;
+  }
 
   // Formulate the strict system guidance instructions
   const systemPrompt = `You are an elite, pedagogical curriculum design expert specialized in building highly engaging, ready-to-print student worksheets for global educators.
