@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClipClass",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Generate beautiful classroom kits and worksheets instantly from YouTube educational videos.",
   "permissions": [
     "activeTab",

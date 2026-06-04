@@ -174,10 +174,24 @@
           </div>
         </div>
 
-        <!-- Action Button -->
+        <!-- Action Buttons -->
         <button class="action-btn" id="generate-btn">
           <span class="btn-text">Generate Classroom Kit</span>
         </button>
+
+        <button class="action-btn blooket-btn" id="blooket-btn">
+          <span class="btn-text">Generate Blooket Game (15 Qs)</span>
+        </button>
+
+        <!-- Blooket Import Instructions -->
+        <div class="blooket-instructions hidden" id="blooket-instructions">
+          <h4 class="instructions-title">Blooket Import Instructions:</h4>
+          <ol class="instructions-steps">
+            <li>Go to the <a href="https://dashboard.blooket.com/create" target="_blank" class="instructions-link">Blooket Set Creator</a>.</li>
+            <li>Fill in details (Title, etc.) and select <strong>"CSV Import"</strong>.</li>
+            <li>Click <strong>"Create Set"</strong>, upload the downloaded CSV file, and host your game!</li>
+          </ol>
+        </div>
 
         <!-- Feedback / Result Blocks (Flat Clean Notifications) -->
         <div class="status-block hidden" id="status-block">

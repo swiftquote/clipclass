@@ -558,6 +558,63 @@ input:checked + .slider:before {
   box-shadow: none;
 }
 
+/* Blooket Theme Accent Button */
+.blooket-btn {
+  background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.25);
+  margin-top: 8px;
+}
+
+.blooket-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #60A5FA 0%, #2563EB 100%);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Blooket Import Instructions Box */
+.blooket-instructions {
+  background-color: var(--field-bg);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  margin-top: 10px;
+  backdrop-filter: blur(5px);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+.instructions-title {
+  color: var(--text-main);
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-size: 0.75rem;
+}
+
+.instructions-steps {
+  padding-left: 15px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.instructions-steps li {
+  margin-bottom: 4px;
+}
+
+.instructions-steps li:last-child {
+  margin-bottom: 0;
+}
+
+.instructions-link {
+  color: #60A5FA;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.instructions-link:hover {
+  color: #93C5FD;
+}
+
 /* Flat Status Block */
 .status-block {
   background-color: var(--field-bg);

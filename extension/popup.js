@@ -14,7 +14,7 @@ const firebaseConfig = {
 };
 
 // Backend API Service Configuration (Set your deployed production domain here)
-const BACKEND_URL = "https://clipclass-1.onrender.com";
+const BACKEND_URL = "https://mohammedhino-lipclass-backend.hf.space";
 
 // Initialize Firebase App & Auth with Try-Catch boundary
 let app = null;
@@ -55,6 +55,8 @@ async function initPopup() {
   const videoTitleEl = document.getElementById("detected-video-title");
   const generateBtn = document.getElementById("generate-btn");
   const btnText = generateBtn.querySelector(".btn-text");
+  const blooketBtn = document.getElementById("blooket-btn");
+  const blooketInstructions = document.getElementById("blooket-instructions");
   
   const ageGroupSelect = document.getElementById("age-group-select");
   const ellLanguageSelect = document.getElementById("ell-language-select");
@@ -126,6 +128,9 @@ async function initPopup() {
     videoTitleEl.style.color = "#FF6B62";
     showStatus("error", message);
     isTabParsingComplete = true;
+    generateBtn.disabled = true;
+    blooketBtn.disabled = true;
+    blooketInstructions.classList.add("hidden");
   }
 
   function setVideoDetectedState(title) {
@@ -133,6 +138,8 @@ async function initPopup() {
     videoTitleEl.style.color = "#94A3B8";
     statusBlock.classList.add("hidden");
     generateBtn.disabled = false;
+    blooketBtn.disabled = false;
+    blooketInstructions.classList.add("hidden");
     isTabParsingComplete = true;
   }
 
@@ -508,6 +515,109 @@ async function initPopup() {
       }
     } finally {
       btnText.textContent = "Generate Classroom Kit";
+    }
+  });
+
+  // ==========================================
+  // BLOOKET GENERATOR EVENT HANDLER
+  // ==========================================
+  blooketBtn.addEventListener("click", async () => {
+    if (!isTabParsingComplete) {
+      showStatus("error", "Analyzing YouTube active tab. Please wait...");
+      return;
+    }
+
+    if (!activeVideoMetadata) {
+      showStatus("error", "No educational YouTube video detected. Navigate to a video watch page first.");
+      return;
+    }
+
+    if (!currentUser) {
+      showStatus("error", "Session expired. Please sign in.");
+      return;
+    }
+
+    blooketBtn.disabled = true;
+    const blooketBtnText = blooketBtn.querySelector(".btn-text");
+    blooketBtnText.textContent = "Generating Game...";
+    showStatus("processing", "Transcribing subtitles and generating Blooket 15-question game set...");
+    blooketInstructions.classList.add("hidden");
+
+    try {
+      const token = await currentUser.getIdToken();
+
+      const payload = {
+        videoId: activeVideoMetadata.videoId,
+        videoTitle: activeVideoMetadata.videoTitle,
+        channelName: activeVideoMetadata.channelName,
+        ageGroup: ageGroupSelect.value
+      };
+
+      const backendUrl = `${BACKEND_URL}/api/generate-blooket`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); 
+
+      const response = await fetch(backendUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errText = "Server failed to compile Blooket game.";
+        try {
+          const errJson = await response.json();
+          errText = errJson.error || errText;
+        } catch (_) {}
+        throw new Error(errText);
+      }
+
+      const contentType = response.headers.get("Content-Type");
+      if (!contentType || !contentType.includes("text/csv")) {
+        throw new Error("Invalid response received. CSV text expected.");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      
+      const fileSlug = activeVideoMetadata.videoTitle
+        .replace(/[^a-z0-9]/gi, '_')
+        .replace(/_{2,}/g, '_')
+        .substring(0, 25);
+
+      a.download = `ClipClass_Blooket_${fileSlug}_Ages_${payload.ageGroup}.csv`;
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+      }, 100);
+
+      showStatus("success", "Blooket game CSV generated and downloaded successfully!");
+      blooketInstructions.classList.remove("hidden");
+      await refreshUserQuota(currentUser);
+
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.name === "AbortError") {
+        errMsg = "Request timed out (60s). Check backend terminal logs.";
+      }
+      showStatus("error", `Blooket Generation Failed: ${errMsg}`);
+      if (currentUser) {
+        await refreshUserQuota(currentUser);
+      }
+    } finally {
+      blooketBtnText.textContent = "Generate Blooket Game (15 Qs)";
+      blooketBtn.disabled = false;
     }
   });
 

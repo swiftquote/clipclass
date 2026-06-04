@@ -10,6 +10,7 @@ import Stripe from 'stripe';
 import { fetchYouTubeTranscript } from './transcript.js';
 import { generateWorksheetContent } from './ai.js';
 import { compileWorkbookPDF } from './pdf.js';
+import { generateBlooketContent } from './blooket.js';
 
 dotenv.config();
 
@@ -861,6 +862,165 @@ app.post('/api/generate-kit', authenticateUser, async (req, res) => {
     res.status(500).json({ error: `Internal Server Error: ${globalErr.message}` });
   }
 });
+
+// Helper to convert questions JSON to Blooket-compatible CSV
+function convertToCSV(questions) {
+  const headers = ["Question", "Answer 1", "Answer 2", "Answer 3", "Answer 4", "Correct Answer", "Time Limit"];
+  const escapeField = (field) => {
+    if (field === undefined || field === null) return '""';
+    const str = String(field);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+  
+  const rows = [
+    headers.map(escapeField).join(',')
+  ];
+  
+  for (const q of questions) {
+    const row = [
+      q.question,
+      q.options?.[0] || "",
+      q.options?.[1] || "",
+      q.options?.[2] || "",
+      q.options?.[3] || "",
+      q.correctAnswer || "",
+      q.timeLimit || 20
+    ];
+    rows.push(row.map(escapeField).join(','));
+  }
+  
+  return rows.join('\r\n');
+}
+
+// Blooket CSV Generator Endpoint (1 per day for Free, unlimited for PRO)
+app.post('/api/generate-blooket', authenticateUser, async (req, res) => {
+  const { uid, email } = req.user;
+  const { videoId, videoTitle, channelName, ageGroup } = req.body;
+
+  // 1. Inputs Validations
+  if (!videoId) {
+    return res.status(400).json({ error: "Missing required field: videoId" });
+  }
+
+  const validAgeGroups = ["5-7", "8-10", "11-13", "14-16", "17+"];
+  if (!ageGroup || !validAgeGroups.includes(ageGroup)) {
+    return res.status(400).json({ 
+      error: `Invalid or missing ageGroup. Must be one of: ${validAgeGroups.join(', ')}` 
+    });
+  }
+
+  try {
+    // 2. ENFORCE QUOTA TRACKING
+    let plan = "free";
+    let lastBlooketReset = null;
+    let userRef = null;
+    let localUserDoc = null;
+
+    if (isFirebaseInitialized) {
+      userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      let userData;
+      if (!userDoc.exists) {
+        userData = {
+          uid: uid,
+          email: email || "",
+          plan: "free",
+          usageCount: 0,
+          translationUsageCount: 0,
+          lastReset: admin.firestore.FieldValue.serverTimestamp(),
+          lastBlooketReset: null
+        };
+        await userRef.set(userData);
+      } else {
+        userData = userDoc.data();
+      }
+
+      plan = userData.plan || "free";
+      lastBlooketReset = userData.lastBlooketReset ? userData.lastBlooketReset.toDate().getTime() : null;
+    } else {
+      localUserDoc = getMockUserRecord(uid, email);
+      plan = localUserDoc.plan;
+      lastBlooketReset = localUserDoc.lastBlooketReset || null;
+    }
+
+    // 3. Quota check: Free tier users are limited to exactly 1 Blooket creation per 24 hours.
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    if (plan === "free" && lastBlooketReset) {
+      const timeSinceLastReset = Date.now() - lastBlooketReset;
+      if (timeSinceLastReset < oneDayMs) {
+        const remainingMs = oneDayMs - timeSinceLastReset;
+        const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+        return res.status(403).json({ 
+          error: `Blooket quota limit reached! Free tier users are limited to 1 Blooket creation per 24 hours. Please wait ${remainingHours} hour(s) or upgrade to PRO for unlimited Blooket creation!` 
+        });
+      }
+    }
+
+    console.log(`[Blooket Quota Checked] Generating Blooket game for user ${uid} (${plan} plan).`);
+
+    // 4. Fetch Subtitles/Transcripts
+    let transcriptData;
+    try {
+      transcriptData = await fetchYouTubeTranscript(videoId);
+    } catch (transcriptErr) {
+      console.warn(`Transcript fetching failed for ID ${videoId}, utilizing resilient topic fallback:`, transcriptErr.message);
+      transcriptData = {
+        fullText: `This is a video titled "${videoTitle || 'Educational Lesson'}".`,
+        timedSegments: [
+          { time: "00:05", text: `Introduction to ${videoTitle || 'the lesson topic'}.` },
+          { time: "02:15", text: `Core concepts and structural elements of ${videoTitle || 'the topic'}.` },
+          { time: "04:30", text: `In-depth explanation and practical applications.` },
+          { time: "07:00", text: `Detailed examples, case studies, and common misconceptions.` },
+          { time: "09:15", text: `Summary of takeaways and concluding thoughts.` }
+        ]
+      };
+    }
+
+    // 5. AI Synthesis Layer
+    let blooketJSON;
+    try {
+      blooketJSON = await generateBlooketContent({
+        timedSegments: transcriptData.timedSegments,
+        ageGroup: ageGroup
+      });
+    } catch (aiErr) {
+      console.error("AI Blooket Generation failed:", aiErr);
+      return res.status(502).json({ 
+        error: `AI Content Synthesis failed: "${aiErr.message}". Verify your API Key configuration.` 
+      });
+    }
+
+    if (!blooketJSON || !blooketJSON.questions || !Array.isArray(blooketJSON.questions)) {
+      return res.status(500).json({ error: "Invalid AI response structure. Questions array was not generated." });
+    }
+
+    // 6. Convert JSON to CSV
+    const csvContent = convertToCSV(blooketJSON.questions);
+
+    // 7. Update lastBlooketReset in Database
+    if (isFirebaseInitialized) {
+      await userRef.update({
+        lastBlooketReset: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log(`[Firestore DB] Updated lastBlooketReset for user ${uid}.`);
+    } else {
+      localUserDoc.lastBlooketReset = Date.now();
+      console.log(`[Mock DB] Updated lastBlooketReset for user ${uid}.`);
+    }
+
+    // 8. Stream CSV response
+    const safeTitle = (videoTitle || "Blooket_Set").replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="ClipClass_Blooket_${safeTitle}.csv"`);
+    res.send(csvContent);
+
+  } catch (globalErr) {
+    console.error("Global Blooket Endpoint failure:", globalErr);
+    res.status(500).json({ error: `Internal Server Error: ${globalErr.message}` });
+  }
+});
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
