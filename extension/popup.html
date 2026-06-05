@@ -127,6 +127,24 @@
           </div>
         </div>
 
+        <!-- Slide Theme Selection -->
+        <div class="form-group">
+          <label for="slide-theme-select" class="group-label">PowerPoint Slide Theme</label>
+          <div class="select-wrapper">
+            <select id="slide-theme-select">
+              <option value="Default" selected>Default (Modern Blue)</option>
+              <option value="Sleek Dark">Sleek Dark Mode</option>
+              <option value="Warm Editorial">Warm Editorial (Georgia)</option>
+              <option value="Bright Playground">Bright Playground (For Kids)</option>
+            </select>
+            <div class="select-arrow">
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1L5 5L9 1" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
         <!-- Number of Questions (PRO Only) -->
         <div class="form-group pro-locked" id="questions-count-group">
           <label for="questions-count-select" class="group-label">Number of Questions <span class="pro-lock-tag">PRO</span></label>
@@ -177,6 +195,10 @@
         <!-- Action Buttons -->
         <button class="action-btn" id="generate-btn">
           <span class="btn-text">Generate Classroom Kit</span>
+        </button>
+
+        <button class="action-btn powerpoint-btn" id="powerpoint-btn">
+          <span class="btn-text">Generate PowerPoint Slides</span>
         </button>
 
         <button class="action-btn blooket-btn" id="blooket-btn">

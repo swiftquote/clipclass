@@ -8,9 +8,10 @@ import path from 'path';
 import Stripe from 'stripe';
 
 import { fetchYouTubeTranscript } from './transcript.js';
-import { generateWorksheetContent } from './ai.js';
+import { generateWorksheetContent, generatePowerpointContent } from './ai.js';
 import { compileWorkbookPDF } from './pdf.js';
 import { generateBlooketContent } from './blooket.js';
+import { compilePresentation } from './pptx.js';
 
 dotenv.config();
 
@@ -1138,6 +1139,177 @@ app.post('/api/generate-blooket', authenticateUser, async (req, res) => {
 
   } catch (globalErr) {
     console.error("Global Blooket Endpoint failure:", globalErr);
+    res.status(500).json({ error: `Internal Server Error: ${globalErr.message}` });
+  }
+});
+
+
+// PowerPoint (PPTX) Generation Endpoint (Shares the weekly usage limit of 10 for Free, unlimited for PRO)
+app.post('/api/generate-powerpoint', authenticateUser, async (req, res) => {
+  const { uid, email } = req.user;
+  const { videoId, videoTitle, channelName, ageGroup, theme } = req.body;
+
+  // 1. Inputs Validations
+  if (!videoId) {
+    return res.status(400).json({ error: "Missing required field: videoId" });
+  }
+
+  const validAgeGroups = ["5-7", "8-10", "11-13", "14-16", "17+"];
+  if (!ageGroup || !validAgeGroups.includes(ageGroup)) {
+    return res.status(400).json({ 
+      error: `Invalid or missing ageGroup. Must be one of: ${validAgeGroups.join(', ')}` 
+    });
+  }
+
+  try {
+    // 2. ENFORCE QUOTA TRACKING
+    let plan = "free";
+    let usageCount = 0;
+    let userRef = null;
+    let localUserDoc = null;
+
+    if (isFirebaseInitialized) {
+      userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      let userData;
+      if (!userDoc.exists) {
+        // Create initial Free Tier User
+        userData = {
+          uid: uid,
+          email: email || "",
+          plan: "free",
+          usageCount: 0,
+          translationUsageCount: 0,
+          lastReset: admin.firestore.FieldValue.serverTimestamp()
+        };
+        await userRef.set(userData);
+      } else {
+        userData = userDoc.data();
+      }
+
+      plan = userData.plan || "free";
+      usageCount = userData.usageCount || 0;
+
+      // Reset week interval in Firestore if expired
+      let lastResetTime = userData.lastReset ? userData.lastReset.toDate().getTime() : Date.now();
+      const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+      if (Date.now() - lastResetTime > oneWeekMs) {
+        usageCount = 0;
+        await userRef.update({
+          usageCount: 0,
+          lastReset: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    } else {
+      // Memory Fallback
+      localUserDoc = getMockUserRecord(uid, email);
+      plan = localUserDoc.plan;
+      usageCount = localUserDoc.usageCount;
+    }
+
+    // 3. Quota check
+    if (plan === "free" && usageCount >= 10) {
+      return res.status(403).json({ 
+        error: "Quota reached! You have completed your 10 free weekly generations. Upgrade to PRO for unlimited generation!" 
+      });
+    }
+
+    console.log(`[PPTX Quota Checked] Generating slide deck for user ${uid} (${plan} plan). Current Usage: ${usageCount}/10`);
+
+    // 4. Fetch Subtitles/Transcripts
+    console.log(`Step 1: Extracting transcript for Video ${videoId}...`);
+    let transcriptData;
+    try {
+      transcriptData = await fetchYouTubeTranscript(videoId);
+    } catch (transcriptErr) {
+      console.warn(`Transcript fetching failed for ID ${videoId}, calling AI fallback generator:`, transcriptErr.message);
+      let segments = [];
+      try {
+        segments = await generateFallbackTranscript(videoTitle || "Educational Lesson");
+      } catch (fallbackErr) {
+        console.error("AI Fallback Transcript Generator failed:", fallbackErr.message);
+      }
+
+      if (segments && segments.length >= 5) {
+        transcriptData = {
+          fullText: segments.join(" "),
+          timedSegments: [
+            { time: "00:05", text: segments[0] },
+            { time: "02:15", text: segments[1] },
+            { time: "04:30", text: segments[2] },
+            { time: "07:00", text: segments[3] },
+            { time: "09:15", text: segments[4] }
+          ]
+        };
+      } else {
+        const titleClean = videoTitle || "Educational Lesson";
+        transcriptData = {
+          fullText: `An educational lesson about ${titleClean}. This lesson explores the key elements, core applications, detailed examples, and important takeaways regarding ${titleClean}.`,
+          timedSegments: [
+            { time: "00:05", text: `Introduction to ${titleClean} and why it is important.` },
+            { time: "02:15", text: `Factual overview of the main components of ${titleClean}.` },
+            { time: "04:30", text: `Explanation of the key mechanics, properties, or concepts of ${titleClean}.` },
+            { time: "07:00", text: `Real-world examples, historical context, or case studies of ${titleClean}.` },
+            { time: "09:15", text: `Summary of major points, conclusions, and applications of ${titleClean}.` }
+          ]
+        };
+      }
+    }
+
+    // 5. AI Synthesis Layer
+    console.log(`Step 2: Synthesizing slides structure using Gemini...`);
+    let pptxJSON;
+    try {
+      pptxJSON = await generatePowerpointContent({
+        timedSegments: transcriptData.timedSegments,
+        ageGroup: ageGroup,
+        theme: theme || "Default"
+      });
+    } catch (aiErr) {
+      console.error("AI PowerPoint Content Synthesis failed:", aiErr);
+      return res.status(502).json({ 
+        error: `AI Content Synthesis failed: "${aiErr.message}". Verify your API Key configuration.` 
+      });
+    }
+
+    if (!pptxJSON || !pptxJSON.slides || !Array.isArray(pptxJSON.slides)) {
+      return res.status(500).json({ error: "Invalid AI response structure. Slides list was not generated." });
+    }
+
+    // 6. Compile PowerPoint Presentation
+    console.log("Step 3: Compiling structured slides into professional PPTX presentation...");
+    let pptxBuffer;
+    try {
+      pptxBuffer = await compilePresentation(pptxJSON, theme || "Default");
+    } catch (pptxErr) {
+      console.error("PowerPoint Compilation Engine failed:", pptxErr);
+      return res.status(500).json({ error: `PPTX Compiler Error: ${pptxErr.message}` });
+    }
+
+    // 7. INCREMENT USAGE IN DATABASE ONCE GENERATED
+    if (plan === "free") {
+      const newUsage = usageCount + 1;
+      if (isFirebaseInitialized) {
+        await userRef.update({
+          usageCount: newUsage
+        });
+        console.log(`[Firestore DB] Incremented usageCount for user ${uid}. New Usage: ${newUsage}`);
+      } else {
+        localUserDoc.usageCount = newUsage;
+        console.log(`[Mock DB] Incremented usageCount for user ${uid}. New Usage: ${newUsage}`);
+      }
+    }
+
+    // 8. Stream PPTX response
+    const safeTitle = (videoTitle || "Slides_Set").replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    res.setHeader('Content-Disposition', `attachment; filename="ClipClass_Slides_${safeTitle}.pptx"`);
+    res.setHeader('Content-Length', pptxBuffer.length);
+    res.send(pptxBuffer);
+
+  } catch (globalErr) {
+    console.error("Global PPTX Endpoint failure:", globalErr);
     res.status(500).json({ error: `Internal Server Error: ${globalErr.message}` });
   }
 });

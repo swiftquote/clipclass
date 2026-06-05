@@ -55,10 +55,12 @@ async function initPopup() {
   const videoTitleEl = document.getElementById("detected-video-title");
   const generateBtn = document.getElementById("generate-btn");
   const btnText = generateBtn.querySelector(".btn-text");
+  const powerpointBtn = document.getElementById("powerpoint-btn");
   const blooketBtn = document.getElementById("blooket-btn");
   const blooketInstructions = document.getElementById("blooket-instructions");
   
   const ageGroupSelect = document.getElementById("age-group-select");
+  const slideThemeSelect = document.getElementById("slide-theme-select");
   const ellLanguageSelect = document.getElementById("ell-language-select");
   const toggleTrivia = document.getElementById("toggle-trivia");
   const questionsCountSelect = document.getElementById("questions-count-select");
@@ -515,6 +517,108 @@ async function initPopup() {
       }
     } finally {
       btnText.textContent = "Generate Classroom Kit";
+    }
+  });
+
+  // ==========================================
+  // POWERPOINT GENERATOR EVENT HANDLER
+  // ==========================================
+  powerpointBtn.addEventListener("click", async () => {
+    if (!isTabParsingComplete) {
+      showStatus("error", "Analyzing YouTube active tab. Please wait...");
+      return;
+    }
+
+    if (!activeVideoMetadata) {
+      showStatus("error", "No educational YouTube video detected. Navigate to a video watch page first.");
+      return;
+    }
+
+    if (!currentUser) {
+      showStatus("error", "Session expired. Please sign in.");
+      return;
+    }
+
+    powerpointBtn.disabled = true;
+    const pptxBtnText = powerpointBtn.querySelector(".btn-text");
+    pptxBtnText.textContent = "Generating Slides...";
+    showStatus("processing", "Transcribing subtitles and generating pedagogical PowerPoint slide deck...");
+
+    try {
+      const token = await currentUser.getIdToken();
+
+      const payload = {
+        videoId: activeVideoMetadata.videoId,
+        videoTitle: activeVideoMetadata.videoTitle,
+        channelName: activeVideoMetadata.channelName,
+        ageGroup: ageGroupSelect.value,
+        theme: slideThemeSelect.value
+      };
+
+      const backendUrl = `${BACKEND_URL}/api/generate-powerpoint`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); 
+
+      const response = await fetch(backendUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errText = "Server failed to compile slide deck.";
+        try {
+          const errJson = await response.json();
+          errText = errJson.error || errText;
+        } catch (_) {}
+        throw new Error(errText);
+      }
+
+      const contentType = response.headers.get("Content-Type");
+      if (!contentType || !contentType.includes("application/vnd.openxmlformats-officedocument.presentationml.presentation")) {
+        throw new Error("Invalid response received. PPTX file expected.");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      
+      const fileSlug = activeVideoMetadata.videoTitle
+        .replace(/[^a-z0-9]/gi, '_')
+        .replace(/_{2,}/g, '_')
+        .substring(0, 25);
+
+      a.download = `ClipClass_Slides_${fileSlug}_Ages_${payload.ageGroup}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+      }, 100);
+
+      showStatus("success", "PowerPoint slide deck generated and downloaded successfully!");
+      await refreshUserQuota(currentUser);
+
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.name === "AbortError") {
+        errMsg = "Request timed out (60s). Check backend terminal logs.";
+      }
+      showStatus("error", `PowerPoint Generation Failed: ${errMsg}`);
+      if (currentUser) {
+        await refreshUserQuota(currentUser);
+      }
+    } finally {
+      pptxBtnText.textContent = "Generate PowerPoint Slides";
+      powerpointBtn.disabled = false;
     }
   });
 

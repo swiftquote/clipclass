@@ -571,6 +571,19 @@ input:checked + .slider:before {
   transform: translateY(-1px);
 }
 
+/* PowerPoint Theme Accent Button */
+.powerpoint-btn {
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.25);
+  margin-top: 8px;
+}
+
+.powerpoint-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FB923C 0%, #F97316 100%);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
+  transform: translateY(-1px);
+}
+
 /* Blooket Import Instructions Box */
 .blooket-instructions {
   background-color: var(--field-bg);

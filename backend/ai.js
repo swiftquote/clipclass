@@ -146,3 +146,167 @@ ${formattedTranscript}
   console.error("Google Gemini API Workbook Generation Error (All Models Failed):", lastError);
   throw new Error(`AI synthesis failed across all active models. Last error: ${lastError.message}`);
 }
+
+/**
+ * Generates structured, pedagogical PowerPoint slide content from transcript segments.
+ * 
+ * @param {Array} timedSegments - Array of { time, text } containing time-annotated transcript segments
+ * @param {string} ageGroup - Target age group ("5-7", "8-10", "11-13", "14-16", "17+")
+ * @param {string} theme - Style theme name (e.g. "Default", "Warm Editorial", "Sleek Dark")
+ */
+export async function generatePowerpointContent({ timedSegments, ageGroup, theme = "Default" }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your-gemini-api-key-here' || apiKey === '') {
+    throw new Error("Gemini API key is missing or not configured.");
+  }
+
+  const formattedTranscript = timedSegments
+    .map(seg => `[${seg.time}] ${seg.text}`)
+    .join('\n');
+
+  const ageSpecs = {
+    "5-7": "Kindergarten/1st Grade. Extremely simple vocabulary, 5-8 word sentences, focus on concrete facts (animals, shapes). Key concepts must be highly visual.",
+    "8-10": "Elementary School. Clear and direct vocabulary, simple concepts. Focus on chronological narrative and basic causes.",
+    "11-13": "Middle School. Descriptive vocabulary, definitions, relationships, and basic 'why' reasoning.",
+    "14-16": "High School. Analytical comprehension, complex topics, and conceptual relationships.",
+    "17+": "College/Adult. Academic terminology, theoretical frameworks, data analysis, and advanced arguments."
+  };
+
+  const selectedSpec = ageSpecs[ageGroup] || ageSpecs["8-10"];
+
+  const systemPrompt = `You are a world-class pedagogical curriculum developer and presentation design specialist. 
+Your task is to analyze the provided YouTube transcript and synthesize a structured, highly effective, ready-to-build classroom slide deck JSON representation.
+The target audience is students in the age group: ${ageGroup} (${selectedSpec}).
+
+You must output a single, valid JSON object following this EXACT structure:
+{
+  "slides": [
+    {
+      "type": "title",
+      "title": "Title of the Lesson (Highly engaging & age-appropriate)",
+      "subtitle": "Grade/Level and Subject"
+    },
+    {
+      "type": "objectives",
+      "title": "Learning Objectives",
+      "bullets": [
+        "Objective 1: Active verb phrased (e.g. Explain, Compare, Analyze, Calculate...)",
+        "Objective 2: Active verb phrased"
+      ]
+    },
+    {
+      "type": "agenda",
+      "title": "Lesson Roadmap",
+      "bullets": [
+        "1. Hook & Warmup",
+        "2. Key Concepts & Factual Lessons",
+        "3. Real-world Examples",
+        "4. Interactive Challenge",
+        "5. Consolidation & Takeaways"
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Assertion Header: A complete, single-sentence claim summarizing the core concept of this slide (e.g., 'Plants store glucose as starch to use for energy later.')",
+      "bullets": [
+        "First key point: Short keyword or phrase (max 8 words)",
+        "Second key point: Short keyword or phrase",
+        "Third key point: Short keyword or phrase",
+        "Fourth key point (optional): Short keyword or phrase"
+      ],
+      "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
+      "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
+    },
+    {
+      "type": "interactive",
+      "title": "Discussion Prompt or Question",
+      "question": "An active review question matching the slide content.",
+      "options": ["A) Choice A", "B) Choice B", "C) Choice C", "D) Choice D"],
+      "correctAnswer": "A) Choice A",
+      "notes": "Teacher notes directing the check for understanding."
+    },
+    {
+      "type": "summary",
+      "title": "Summary of Takeaways",
+      "bullets": [
+        "First major take-home concept (short phrase)",
+        "Second major take-home concept (short phrase)",
+        "Third major take-home concept (short phrase)"
+      ],
+      "notes": "Teacher directions to close and consolidate the lesson."
+    }
+  ]
+}
+
+CRITICAL RULES FOR CONTENT SYNTHESIS:
+1. Logical Arc: Title -> Objectives -> Agenda -> 4 to 6 Content Slides -> 1 Interactive Check Slide -> Summary Slide.
+2. Cognitive Load: Max 1 core idea per slide. Bullet points must be short keywords/phrases (no full paragraphs). Cap bullet points at exactly 4 per slide.
+3. Assertion-Evidence Style: For every "content" slide, the header MUST be a full-sentence assertion claim (not a vague topic label like 'Introduction' or 'Starch').
+4. Delivery Support: Put the teacher's talking points, discussion prompts, and timing cues strictly in the 'notes' field (which will go to the speaker notes). Keep the slides clean.
+5. Alignment: Every content slide must align directly back to the stated learning objectives.
+6. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
+
+  const userPrompt = `Generate a structured slide deck for:
+- Student Age Group: Ages ${ageGroup}
+- Selected Visual Theme: ${theme}
+
+Here is the chronological transcript of the educational video:
+=== START TRANSCRIPT ===
+${formattedTranscript}
+=== END TRANSCRIPT ===`;
+
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"];
+  let lastError = null;
+
+  for (const modelName of candidateModels) {
+    try {
+      console.log(`[AI Slide Layer] Attempting PPTX synthesis using model: ${modelName}...`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `${systemPrompt}\n\n${userPrompt}`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.35
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
+      }
+
+      const result = await response.json();
+      const contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!contentText) {
+        throw new Error(`Model ${modelName} did not return content text.`);
+      }
+
+      const payload = JSON.parse(contentText.trim());
+      console.log(`[AI Slide Layer] Successfully synthesized slide JSON using model: ${modelName}`);
+      return payload;
+
+    } catch (err) {
+      console.warn(`[AI Slide Layer] Model ${modelName} failed or throttled: ${err.message}. Retrying next candidate...`);
+      lastError = err;
+    }
+  }
+
+  console.error("Google Gemini API PowerPoint Generation Error (All Models Failed):", lastError);
+  throw new Error(`AI slide synthesis failed across all active models. Last error: ${lastError.message}`);
+}
