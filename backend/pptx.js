@@ -41,6 +41,47 @@ async function fetchImageFromUrlAsBase64(url) {
 }
 
 /**
+ * Local heuristic relevance check: returns true if the image filename or URL
+ * contains at least one descriptive word from the search phrase.
+ * Filters out common stop words like "painting", "photo", "diagram", etc.
+ * 
+ * @param {string} imageTitleOrUrl - Target filename or URL to check
+ * @param {string} searchPhrase - Descriptive search phrase
+ * @returns {boolean} True if the image is relevant, false otherwise
+ */
+export function isImageRelevant(imageTitleOrUrl, searchPhrase) {
+  if (!imageTitleOrUrl || !searchPhrase) return false;
+
+  const cleanTarget = decodeURIComponent(imageTitleOrUrl).toLowerCase();
+
+  // Stop words to exclude from matching
+  const stopWords = new Set([
+    'painting', 'photo', 'photograph', 'diagram', 'illustration', 
+    'image', 'picture', 'drawing', 'the', 'a', 'an', 'of', 'and', 
+    'in', 'on', 'with', 'for', 'at', 'by', 'from', 'to'
+  ]);
+  
+  // Extract clean keywords from search phrase
+  const keywords = searchPhrase
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .map(w => w.trim())
+    .filter(w => w.length > 2 && !stopWords.has(w)); // Only words longer than 2 characters and not stop words
+
+  if (keywords.length === 0) return true; // Accept by default if no matching keywords remain
+
+  // Verify if at least one keyword is contained in the target filename/url
+  const matches = keywords.some(kw => cleanTarget.includes(kw));
+  if (!matches) {
+    console.log(`[Relevance Check] Rejected "${imageTitleOrUrl}" for query "${searchPhrase}". Keywords missing: [${keywords.join(', ')}]`);
+  } else {
+    console.log(`[Relevance Check] Accepted "${imageTitleOrUrl}" for query "${searchPhrase}".`);
+  }
+  return matches;
+}
+
+/**
  * Searches Wikimedia Commons for files matching the search phrase, returns the first raster image.
  * 
  * @param {string} phrase - Descriptive search phrase
@@ -77,10 +118,13 @@ async function fetchFromWikimedia(phrase) {
           const fileUrl = p.imageinfo[0].url;
           // Filter to only accept common raster image types (.jpg, .jpeg, .png)
           if (/\.(jpe?g|png)$/i.test(fileUrl)) {
-            console.log(`[Wikimedia Fetch] Found candidate image: ${fileUrl}`);
-            const base64 = await fetchImageFromUrlAsBase64(fileUrl);
-            if (base64) {
-              return base64;
+            // Relevance Check
+            if (isImageRelevant(fileUrl, phrase)) {
+              console.log(`[Wikimedia Fetch] Found candidate image: ${fileUrl}`);
+              const base64 = await fetchImageFromUrlAsBase64(fileUrl);
+              if (base64) {
+                return base64;
+              }
             }
           }
         }
@@ -136,10 +180,13 @@ async function fetchFromUnsplash(phrase) {
       for (const item of data.results) {
         const imageUrl = item.urls?.regular || item.urls?.small;
         if (imageUrl) {
-          console.log(`[Unsplash Fetch] Found candidate photo: ${imageUrl}`);
-          const base64 = await fetchImageFromUrlAsBase64(imageUrl);
-          if (base64) {
-            return base64;
+          // Relevance Check
+          if (isImageRelevant(imageUrl, phrase)) {
+            console.log(`[Unsplash Fetch] Found candidate photo: ${imageUrl}`);
+            const base64 = await fetchImageFromUrlAsBase64(imageUrl);
+            if (base64) {
+              return base64;
+            }
           }
         }
       }

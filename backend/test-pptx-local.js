@@ -1,0 +1,192 @@
+import fs from 'fs';
+import path from 'path';
+import { compilePresentation, isImageRelevant } from './pptx.js';
+
+async function runLocalTest() {
+  console.log("==================================================");
+  console.log("🧪 Testing PowerPoint Generation & Styling (Local Offline)...");
+  console.log("==================================================");
+
+  // --- Relevance Check Unit Tests ---
+  console.log("🔍 Running Relevance Check Unit Tests...");
+  const testCases = [
+    {
+      url: "https://upload.wikimedia.org/wikipedia/commons/2/29/Washington_Constitutional_Convention_1787.jpg",
+      phrase: "Constitutional Convention 1787 painting",
+      expected: true
+    },
+    {
+      url: "https://upload.wikimedia.org/wikipedia/commons/a/aa/Osaka_Mayoral_Election_ballot_box_20051127.jpg",
+      phrase: "voting ballot box election",
+      expected: true
+    },
+    {
+      url: "https://upload.wikimedia.org/wikipedia/commons/2/22/Sleeping_Cat_on_Sofa.jpg",
+      phrase: "Constitutional Convention 1787 painting",
+      expected: false
+    },
+    {
+      url: "https://upload.wikimedia.org/wikipedia/commons/8/81/Beautiful_Painting.jpg",
+      phrase: "Constitutional Convention 1787 painting",
+      expected: false
+    }
+  ];
+
+  let testPassed = true;
+  for (const tc of testCases) {
+    const result = isImageRelevant(tc.url, tc.phrase);
+    if (result !== tc.expected) {
+      console.error(`❌ Unit Test Failed for url "${tc.url}" with query "${tc.phrase}". Expected ${tc.expected}, got ${result}`);
+      testPassed = false;
+    } else {
+      console.log(`✅ Unit Test Passed: expected ${tc.expected}, got ${result}`);
+    }
+  }
+
+  if (testPassed) {
+    console.log("✨ All relevance check unit tests PASSED!\n");
+  } else {
+    console.error("⚠️ Some unit tests failed. Review results.\n");
+  }
+
+  const mockSlidesJSON = {
+    "slides": [
+      {
+        "type": "title",
+        "title": "Electing a President: Understanding the Electoral College",
+        "subtitle": "High School Social Studies"
+      },
+      {
+        "type": "objectives",
+        "title": "Learning Objectives",
+        "bullets": [
+          "Explain the purpose and origin of the Electoral College system.",
+          "Describe how electoral votes are allocated to states and the winning threshold.",
+          "Analyze the 'winner-take-all' system and its impact on presidential elections.",
+          "Evaluate the main arguments for and against the Electoral College."
+        ]
+      },
+      {
+        "type": "agenda",
+        "title": "Lesson Roadmap",
+        "bullets": [
+          "1. Hook & Warmup",
+          "2. Key Concepts & Factual Lessons",
+          "3. Real-world Examples",
+          "4. Interactive Challenge",
+          "5. Consolidation & Takeaways"
+        ]
+      },
+      {
+        "type": "content",
+        "title": "The Electoral College was created as a constitutional compromise between Congress and the popular vote.",
+        "bullets": [
+          "US presidential election system",
+          "Established by Article II",
+          "Compromise between methods",
+          "Popular vote vs. Congressional vote"
+        ],
+        "visualDescription": "A historical illustration depicting the Constitutional Convention delegates debating the presidential election process.",
+        "imageSearchPhrase": "Constitutional Convention 1787 painting",
+        "notes": "Good morning, class! [Pacing: 1 min] Today, we're diving into a core part of American democracy: the Electoral College. ..."
+      },
+      {
+        "type": "content",
+        "title": "Each state's electoral votes are determined by its total representation in Congress.",
+        "bullets": [
+          "Electors based on representation",
+          "Two senators per state",
+          "House representatives count",
+          "538 total electors, 270 to win"
+        ],
+        "visualDescription": "An infographic map of the United States, with each state clearly labeled and displaying its current number of electoral votes.",
+        "imageSearchPhrase": "United States Capitol building photo",
+        "notes": "[Pacing: 2 mins] So, how many electors does each state get? It's directly tied to their representation in Congress. Ever..."
+      },
+      {
+        "type": "content",
+        "title": "Most states award all their electoral votes to the candidate who wins the state's popular vote.",
+        "bullets": [
+          "Winner-take-all system",
+          "State popular vote majority",
+          "All electoral votes awarded",
+          "Maine and Nebraska exceptions"
+        ],
+        "visualDescription": "An animated graphic showing a U.S. state map. As a candidate 'wins' a state's popular vote, the entire state turns that color.",
+        "imageSearchPhrase": "voting ballot box election",
+        "notes": "[Pacing: 2.5 mins] This is a crucial aspect: the 'winner-take-all' system. In 48 out of 50 states, if a candidate wins..."
+      },
+      {
+        "type": "content",
+        "title": "The system is highly debated because a candidate can win the popular vote but lose the presidency.",
+        "bullets": [
+          "Critics call the system undemocratic",
+          "Mismatches occurred in 2000 and 2016",
+          "Proponents argue it preserves federalism",
+          "Prevents candidates from ignoring small states"
+        ],
+        "visualDescription": "A concept diagram showing two scales balancing: Popular Vote on the left versus the Electoral College on the right.",
+        "imageSearchPhrase": "supercalifragilisticexpialidocious nonexistent search query",
+        "notes": "[Pacing: 3 mins] This is the core analytical concept. It will trigger the fallback SVG diagram generation since no image will be found."
+      },
+      {
+        "type": "content",
+        "title": "Campaign efforts concentrate heavily on key swing states.",
+        "bullets": [
+          "Candidates focus on purple states",
+          "Safe states are largely ignored",
+          "Winner-take-all amplifies swing power",
+          "Small margin shifts decide winner"
+        ],
+        "visualDescription": "A map highlighting swing states like Pennsylvania and Michigan in purple.",
+        "imageSearchPhrase": "swing states campaign cat",
+        "notes": "[Pacing: 2.5 mins] This search query matches general cat photos on Wikimedia Commons, but they will be rejected by the relevance check, triggering our custom SVG diagram instead."
+      },
+      {
+        "type": "interactive",
+        "title": "Check Your Understanding: Electoral Votes",
+        "question": "How many electoral votes are needed to win the presidency?",
+        "options": ["A) 270 votes", "B) 538 votes", "C) 100 votes", "D) 435 votes"],
+        "correctAnswer": "A) 270 votes",
+        "notes": "Teacher notes directing the check for understanding."
+      },
+      {
+        "type": "summary",
+        "title": "Summary of Takeaways",
+        "bullets": [
+          "Electoral College is a constitutional compromise.",
+          "Electors based on Congressional representation.",
+          "Most states use 'winner-take-all' system.",
+          "Debate exists over its democratic fairness."
+        ],
+        "notes": "Teacher directions to close and consolidate the lesson."
+      }
+    ]
+  };
+
+  try {
+    console.log("Compiling slides JSON into a PPTX presentation file...");
+    const pptxBuffer = await compilePresentation(mockSlidesJSON, "Cobalt Blue");
+    
+    // Save to the brain artifact directory
+    const artifactFolder = "/Users/mohammedismail/.gemini/antigravity-ide/brain/19c37cef-f876-4afd-a9a2-e67ee518a48c";
+    const filename = "ClipClass_Presentation_krIeObyk8ac.pptx";
+    const outputPath = path.join(artifactFolder, filename);
+    
+    fs.writeFileSync(outputPath, pptxBuffer);
+    console.log(`\n📂 Successfully compiled slide deck: ${outputPath} (${pptxBuffer.length} bytes)`);
+
+    // Copy to Downloads folder as requested
+    const downloadsPath = "/Users/mohammedismail/Downloads/ClipClass_Presentation_krIeObyk8ac.pptx";
+    fs.copyFileSync(outputPath, downloadsPath);
+    console.log(`📂 Copied PowerPoint presentation to Downloads: ${downloadsPath}`);
+    console.log("==================================================");
+
+  } catch (err) {
+    console.error("\n❌ PowerPoint generation test failed!");
+    console.error(err);
+    console.log("==================================================");
+  }
+}
+
+runLocalTest();
