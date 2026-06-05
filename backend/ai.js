@@ -215,7 +215,7 @@ You must output a single, valid JSON object following this EXACT structure:
         "Fourth key point (optional): Short keyword or phrase"
       ],
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
-      "imageSearchPhrase": "A specific 3-6 word descriptive phrase optimized for Wikimedia Commons. Follow domain-specific instructions: include 'diagram' or 'labeled' for science/maths; medium like 'painting' or 'photograph' for history; 'map' for geography; 'diagram' or 'schematic' for technology. Avoid generic stock photo terms and never use the slide title.",
+      "imageSearchPhrase": "A specific 3-6 word descriptive phrase optimized for Wikimedia Commons. Follow domain-specific instructions: include 'diagram' or 'labeled' for science/maths; medium like 'painting' or 'photograph' for history; 'map' for geography; 'diagram' or 'schematic' for technology. For abstract concepts, use a concrete real-world object/scene 'photograph' (e.g., 'satellite television broadcast tower photograph' instead of 'soft power'). Avoid generic terms, do not use 'illustration', and never use the slide title.",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
@@ -253,6 +253,8 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
    - For HISTORY and SOCIAL STUDIES slides: include the medium (e.g. "Constitutional Convention 1787 painting", "World War 2 soldiers photograph").
    - For GEOGRAPHY slides: include "map" where relevant (e.g. "United States electoral college map").
    - For TECHNOLOGY slides: include "diagram" or "schematic" (e.g. "CPU processor architecture diagram", "input process output flowchart").
+   - For ABSTRACT or CONCEPTUAL slides (theories, ethics, influence, literacy, democracy, culture): do NOT describe the concept itself. Instead, identify a concrete real-world object or scene that represents it (e.g. instead of "soft power media influence" use "satellite television broadcast tower photograph"; instead of "critical media literacy" use "person reading newspaper critical thinking photograph").
+   - NEVER use the word "illustration" as a medium in any rule (use "diagram" for STEM/technology and "photograph" for real-world scenes/mediums, as "illustration" returns decorative artwork rather than educational visuals on Wikimedia).
    - NEVER generate a phrase that would return a generic stock photo (avoid: "people working", "student learning", "technology concept").
    - NEVER use the slide title as the phrase — be more specific about the actual visual needed.
 7. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
