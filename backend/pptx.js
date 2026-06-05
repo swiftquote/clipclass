@@ -1,6 +1,63 @@
 import pptxgen from 'pptxgenjs';
 
 /**
+ * Helper to fetch a relevant photographic image from LoremFlickr based on search keywords.
+ * Converts the fetched image to a Base64 data URI for direct embedding in the PPTX.
+ * Includes a timeout to ensure slide generation is never blocked if network is slow.
+ * 
+ * @param {string} keywords - Comma-separated search keywords
+ * @returns {Promise<string|null>} Base64 image data URI string, or null on failure
+ */
+async function fetchImageAsBase64(keywords) {
+  if (!keywords) return null;
+
+  // Clean keywords: trim whitespace, replace inner spaces in tags with hyphens, filter empty tags
+  const tags = keywords
+    .split(',')
+    .map(k => k.trim().replace(/\s+/g, '-'))
+    .filter(Boolean)
+    .join(',');
+
+  if (!tags) return null;
+
+  const url = `https://loremflickr.com/800/600/${tags}`;
+  console.log(`[Image Fetch] Fetching image from: ${url}`);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout limit
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP status ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
+      throw new Error(`Returned invalid content-type: ${contentType}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    
+    console.log(`[Image Fetch] Successfully fetched image for keywords "${keywords}" (${buffer.length} bytes)`);
+    return `data:${contentType};base64,${base64}`;
+  } catch (err) {
+    console.error(`[Image Fetch] Error fetching image for keywords "${keywords}":`, err.message);
+    return null;
+  }
+}
+
+/**
  * Compiles a structured slides JSON object into a styled PPTX file buffer.
  * Enforces global off-white background, near-black text, and a clean sans-serif (Inter).
  * 
@@ -31,6 +88,14 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   const accentHex = accents[accentName] || accents["Cobalt Blue"];
 
   const slides = slidesJSON.slides || [];
+
+  // Fetch images concurrently for content slides
+  const imagePromises = slides.map(async (s) => {
+    if (s.type === 'content' && s.imageKeywords) {
+      s.imageBase64 = await fetchImageAsBase64(s.imageKeywords);
+    }
+  });
+  await Promise.all(imagePromises);
 
   for (const s of slides) {
     const slide = pptx.addSlide();
@@ -170,27 +235,53 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           });
         }
 
-        // Right Column: Visual Evidence Card (with accent color border highlights)
-        slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-          x: 5.1,
-          y: 1.4,
-          w: 4.3,
-          h: 3.6,
-          fill: { color: "F1F5F9" }, // Slate-100 card fill
-          line: { color: accentHex, width: 2 }
-        });
+        if (s.imageBase64) {
+          // Render the actual photographic image
+          slide.addImage({
+            data: s.imageBase64,
+            x: 5.1,
+            y: 1.4,
+            w: 4.3,
+            h: 2.7,
+            sizing: { type: 'cover', w: 4.3, h: 2.7 }
+          });
 
-        // Text inside the Visual Card
-        slide.addText([
-          { text: "📊 VISUAL EVIDENCE:\n\n", options: { bold: true, fontSize: 16, color: accentHex, fontFace: FONT_FAMILY } },
-          { text: s.visualDescription || "Diagram placeholder detailing key concept dynamics.", options: { fontSize: 14, color: TEXT_COLOR, fontFace: FONT_FAMILY } }
-        ], {
-          x: 5.3,
-          y: 1.6,
-          w: 3.9,
-          h: 3.2,
-          valign: 'top'
-        });
+          // Text caption below the image
+          slide.addText(s.visualDescription || "", {
+            x: 5.1,
+            y: 4.25,
+            w: 4.3,
+            h: 0.9,
+            fontSize: 11,
+            italic: true,
+            color: "64748B", // Slate-500
+            fontFace: FONT_FAMILY,
+            align: 'center',
+            valign: 'top'
+          });
+        } else {
+          // Right Column: Fallback Visual Evidence Card (when image fetch fails)
+          slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+            x: 5.1,
+            y: 1.4,
+            w: 4.3,
+            h: 3.6,
+            fill: { color: "F1F5F9" }, // Slate-100 card fill
+            line: { color: accentHex, width: 2 }
+          });
+
+          // Text inside the Visual Card
+          slide.addText([
+            { text: "📊 VISUAL EVIDENCE:\n\n", options: { bold: true, fontSize: 16, color: accentHex, fontFace: FONT_FAMILY } },
+            { text: s.visualDescription || "Diagram placeholder detailing key concept dynamics.", options: { fontSize: 14, color: TEXT_COLOR, fontFace: FONT_FAMILY } }
+          ], {
+            x: 5.3,
+            y: 1.6,
+            w: 3.9,
+            h: 3.2,
+            valign: 'top'
+          });
+        }
         break;
 
       case 'interactive':
