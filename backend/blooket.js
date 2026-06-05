@@ -56,7 +56,7 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
 1. Exactly 15 Questions: You MUST generate exactly 15 multiple-choice questions. No more, no less.
 2. Options Count: Every question must contain exactly 4 option choices inside the "options" array.
 3. Correct Answer Matching: The "correctAnswer" string MUST match the text in one of the 4 elements in the "options" array EXACTLY, character-for-character, including casing and spacing.
-4. Professional Quality: Questions must be professional, academic, and directly test core conceptual lessons, facts, or definitions taught in the transcript. Avoid generic or meta-style questions.
+4. Professional Quality: Questions must be professional, academic, and directly test core conceptual lessons, facts, or definitions taught in the transcript. Do NOT reference the video itself, the speaker, the channel name, timestamps, or video structure in the question or options text (e.g. do NOT ask 'What does the video show at 02:15?', 'What is said at the beginning?', or 'What does the speaker explain?'). Every question must test the subject matter directly (e.g. 'What are the main components of photosynthesis?' instead of 'What does the video say are the main components of photosynthesis?'). Avoid generic or meta-style questions.
 5. Time Limits: Set "timeLimit" to 20 for standard questions, or 30 for questions requiring slightly longer thinking time.
 6. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload. Check that all double quotes are escaped correctly in fields.`;
 
