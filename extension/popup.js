@@ -60,7 +60,6 @@ async function initPopup() {
   const blooketInstructions = document.getElementById("blooket-instructions");
   
   const ageGroupSelect = document.getElementById("age-group-select");
-  const slideThemeSelect = document.getElementById("slide-theme-select");
   const ellLanguageSelect = document.getElementById("ell-language-select");
   const toggleTrivia = document.getElementById("toggle-trivia");
   const questionsCountSelect = document.getElementById("questions-count-select");
@@ -552,7 +551,7 @@ async function initPopup() {
         videoTitle: activeVideoMetadata.videoTitle,
         channelName: activeVideoMetadata.channelName,
         ageGroup: ageGroupSelect.value,
-        theme: slideThemeSelect.value
+        theme: "Cobalt Blue"
       };
 
       const backendUrl = `${BACKEND_URL}/api/generate-powerpoint`;
