@@ -215,7 +215,7 @@ You must output a single, valid JSON object following this EXACT structure:
         "Fourth key point (optional): Short keyword or phrase"
       ],
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
-      "imageSearchPhrase": "A specific, descriptive search phrase to fetch a relevant photographic image or historical painting from Wikimedia Commons or Unsplash (e.g., 'Constitutional Convention 1787 painting', 'United States Senate chamber photo', or 'green leaf photosynthesis cellular diagram'). Do not use generic, loose keywords.",
+      "imageSearchPhrase": "A specific 3-6 word descriptive phrase optimized for Wikimedia Commons. Follow domain-specific instructions: include 'diagram' or 'labeled' for science/maths; medium like 'painting' or 'photograph' for history; 'map' for geography; 'diagram' or 'schematic' for technology. Avoid generic stock photo terms and never use the slide title.",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
@@ -245,7 +245,17 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
 3. Assertion-Evidence Style: For every "content" slide, the header MUST be a full-sentence assertion claim (not a vague topic label like 'Introduction' or 'Starch').
 4. Delivery Support: Put the teacher's talking points, discussion prompts, and timing cues strictly in the 'notes' field (which will go to the speaker notes). Keep the slides clean.
 5. Alignment: Every content slide must align directly back to the stated learning objectives.
-6. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
+6. Image Search Phrase Guidelines:
+   For each content slide, generate an "imageSearchPhrase" to find a relevant educational image on Wikimedia Commons:
+   - Write it as a specific 3-6 word descriptive phrase, NOT comma-separated tags.
+   - Optimise for Wikimedia Commons search — think about what an educator or textbook author would have uploaded.
+   - For MATHS and SCIENCE slides: include the word "diagram" or "labeled" (e.g. "Pythagoras theorem right triangle labeled", "photosynthesis process diagram", "open loop control system diagram").
+   - For HISTORY and SOCIAL STUDIES slides: include the medium (e.g. "Constitutional Convention 1787 painting", "World War 2 soldiers photograph").
+   - For GEOGRAPHY slides: include "map" where relevant (e.g. "United States electoral college map").
+   - For TECHNOLOGY slides: include "diagram" or "schematic" (e.g. "CPU processor architecture diagram", "input process output flowchart").
+   - NEVER generate a phrase that would return a generic stock photo (avoid: "people working", "student learning", "technology concept").
+   - NEVER use the slide title as the phrase — be more specific about the actual visual needed.
+7. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
 
   const userPrompt = `Generate a structured slide deck for:
 - Student Age Group: Ages ${ageGroup}
