@@ -1,28 +1,13 @@
 import pptxgen from 'pptxgenjs';
 
 /**
- * Helper to fetch a relevant photographic image from LoremFlickr based on search keywords.
- * Converts the fetched image to a Base64 data URI for direct embedding in the PPTX.
- * Includes a timeout to ensure slide generation is never blocked if network is slow.
+ * Helper to fetch any direct image URL and convert it to a Base64 data URI.
+ * Includes a timeout to prevent hanging.
  * 
- * @param {string} keywords - Comma-separated search keywords
+ * @param {string} url - Direct image URL to fetch
  * @returns {Promise<string|null>} Base64 image data URI string, or null on failure
  */
-async function fetchImageAsBase64(keywords) {
-  if (!keywords) return null;
-
-  // Clean keywords: trim whitespace, replace inner spaces in tags with hyphens, filter empty tags
-  const tags = keywords
-    .split(',')
-    .map(k => k.trim().replace(/\s+/g, '-'))
-    .filter(Boolean)
-    .join(',');
-
-  if (!tags) return null;
-
-  const url = `https://loremflickr.com/800/600/${tags}`;
-  console.log(`[Image Fetch] Fetching image from: ${url}`);
-
+async function fetchImageFromUrlAsBase64(url) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout limit
@@ -30,7 +15,7 @@ async function fetchImageAsBase64(keywords) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'ClipClassEducationalApp/1.0 (mismail17.308@gmail.com)'
       }
     });
 
@@ -48,13 +33,239 @@ async function fetchImageAsBase64(keywords) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64 = buffer.toString('base64');
-    
-    console.log(`[Image Fetch] Successfully fetched image for keywords "${keywords}" (${buffer.length} bytes)`);
     return `data:${contentType};base64,${base64}`;
   } catch (err) {
-    console.error(`[Image Fetch] Error fetching image for keywords "${keywords}":`, err.message);
+    console.error(`[Image Fetch Url] Error fetching from ${url}:`, err.message);
     return null;
   }
+}
+
+/**
+ * Searches Wikimedia Commons for files matching the search phrase, returns the first raster image.
+ * 
+ * @param {string} phrase - Descriptive search phrase
+ * @returns {Promise<string|null>} Base64 image data URI, or null on failure
+ */
+async function fetchFromWikimedia(phrase) {
+  if (!phrase) return null;
+  
+  const url = `https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=${encodeURIComponent(phrase)}&gsrnamespace=6&prop=imageinfo&iiprop=url&gsrlimit=5`;
+  console.log(`[Wikimedia Fetch] Searching Commons for: "${phrase}"`);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s API search timeout
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'ClipClassEducationalApp/1.0 (mismail17.308@gmail.com)'
+      }
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Wikimedia API responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.query && data.query.pages) {
+      const pages = Object.values(data.query.pages);
+      for (const p of pages) {
+        if (p.imageinfo && p.imageinfo[0] && p.imageinfo[0].url) {
+          const fileUrl = p.imageinfo[0].url;
+          // Filter to only accept common raster image types (.jpg, .jpeg, .png)
+          if (/\.(jpe?g|png)$/i.test(fileUrl)) {
+            console.log(`[Wikimedia Fetch] Found candidate image: ${fileUrl}`);
+            const base64 = await fetchImageFromUrlAsBase64(fileUrl);
+            if (base64) {
+              return base64;
+            }
+          }
+        }
+      }
+    }
+    console.log(`[Wikimedia Fetch] No matching raster images found for: "${phrase}"`);
+    return null;
+  } catch (err) {
+    console.error(`[Wikimedia Fetch] Error searching for "${phrase}":`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Searches Unsplash API for photos matching the search phrase.
+ * Requires UNSPLASH_ACCESS_KEY or UNSPLASH_CLIENT_ID to be set in environment variables.
+ * 
+ * @param {string} phrase - Descriptive search phrase
+ * @returns {Promise<string|null>} Base64 image data URI, or null on failure
+ */
+async function fetchFromUnsplash(phrase) {
+  if (!phrase) return null;
+
+  const accessKey = process.env.UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_CLIENT_ID;
+  if (!accessKey) {
+    console.log(`[Unsplash Fetch] Skipping search. No UNSPLASH_ACCESS_KEY found in environment.`);
+    return null;
+  }
+
+  const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(phrase)}&per_page=5`;
+  console.log(`[Unsplash Fetch] Querying Unsplash API for: "${phrase}"`);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s API search timeout
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Client-ID ${accessKey}`,
+        'User-Agent': 'ClipClassEducationalApp/1.0 (mismail17.308@gmail.com)'
+      }
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Unsplash API responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      for (const item of data.results) {
+        const imageUrl = item.urls?.regular || item.urls?.small;
+        if (imageUrl) {
+          console.log(`[Unsplash Fetch] Found candidate photo: ${imageUrl}`);
+          const base64 = await fetchImageFromUrlAsBase64(imageUrl);
+          if (base64) {
+            return base64;
+          }
+        }
+      }
+    }
+    console.log(`[Unsplash Fetch] No photos found on Unsplash for: "${phrase}"`);
+    return null;
+  } catch (err) {
+    console.error(`[Unsplash Fetch] Error querying for "${phrase}":`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Generates a beautiful vector SVG diagram card matching the slide topic.
+ * Uses the custom presentation accent color for cohesive styling.
+ * 
+ * @param {string} title - Slide title
+ * @param {string} description - Diagram visual description
+ * @param {string} accentHex - Accent theme color hex code
+ * @returns {string} Base64 SVG data URI
+ */
+function generateSVGDiagram(title, description, accentHex) {
+  // XML escaping helper
+  const escapeXML = (str) => {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  };
+
+  const cleanTitle = escapeXML(title || 'Educational Concept');
+  const cleanDesc = escapeXML(description || '');
+
+  // Wrap description text into lines of ~40 characters for visual layout
+  const words = cleanDesc.split(' ');
+  const lines = [];
+  let currentLine = '';
+  for (const w of words) {
+    if ((currentLine + ' ' + w).length > 40) {
+      lines.push(currentLine);
+      currentLine = w;
+    } else {
+      currentLine = currentLine ? currentLine + ' ' + w : w;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  
+  const displayLines = lines.slice(0, 4); // Show up to 4 lines in the diagram card
+
+  // Generate SVG code
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAFAF8" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </linearGradient>
+    
+    <!-- Accent Color Gradients -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#${accentHex}" />
+      <stop offset="100%" stop-color="#${accentHex}BB" />
+    </linearGradient>
+    
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#1E293B" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <!-- Outer Card Frame -->
+  <rect x="20" y="20" width="760" height="560" rx="28" fill="url(#bgGrad)" stroke="#${accentHex}" stroke-width="4" filter="url(#shadow)" />
+  
+  <!-- Subtle Grid Blueprint Grid -->
+  <pattern id="blueprintGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E2E8F0" stroke-width="1.5" />
+  </pattern>
+  <rect x="30" y="30" width="740" height="540" rx="22" fill="url(#blueprintGrid)" opacity="0.6" />
+
+  <!-- Diagram Nodes Graphics (Stylized Concept Flow) -->
+  <g transform="translate(400, 210)">
+    <!-- Central Node -->
+    <circle cx="0" cy="0" r="55" fill="url(#accentGrad)" filter="url(#shadow)" />
+    <circle cx="0" cy="0" r="48" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="6,4" />
+    
+    <!-- Left Input Node -->
+    <circle cx="-160" cy="0" r="42" fill="#FFFFFF" stroke="#${accentHex}" stroke-width="3" filter="url(#shadow)" />
+    <path d="M -160 -15 L -160 15 M -175 0 L -145 0" stroke="#${accentHex}" stroke-width="4" stroke-linecap="round" />
+    
+    <!-- Right Output Node -->
+    <circle cx="160" cy="0" r="42" fill="#FFFFFF" stroke="#${accentHex}" stroke-width="3" filter="url(#shadow)" />
+    <!-- Checkmark icon inside right node -->
+    <path d="M 148 0 L 156 8 L 172 -8" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" stroke-linecap="round" />
+
+    <!-- Connecting Arrows -->
+    <!-- Left to Center Arrow -->
+    <path d="M -105 0 L -70 0" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" />
+    <path d="M -73 -8 L -65 0 L -73 8" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" stroke-linecap="round" />
+
+    <!-- Center to Right Arrow -->
+    <path d="M 70 0 L 105 0" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" />
+    <path d="M 102 -8 L 110 0 L 102 8" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" stroke-linecap="round" />
+    
+    <!-- Decorative orbits -->
+    <path d="M -220 -80 Q 0 -140 220 -80" fill="none" stroke="#${accentHex}" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
+    <path d="M -220 80 Q 0 140 220 80" fill="none" stroke="#${accentHex}" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
+  </g>
+
+  <!-- Title / Central Concept Text -->
+  <text x="400" y="420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif" font-size="28" font-weight="800" fill="#1A1A1A" text-anchor="middle">
+    ${cleanTitle}
+  </text>
+
+  <!-- Multi-line description mapping inside SVG -->
+  ${displayLines.map((line, idx) => `
+    <text x="400" y="${470 + (idx * 26)}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif" font-size="16" font-weight="600" fill="#64748B" text-anchor="middle">
+      ${line}
+    </text>
+  `).join('')}
+</svg>`;
+
+  const base64 = Buffer.from(svg).toString('base64');
+  console.log(`[SVG Diagram] Generated vector diagram for: "${title}" (${base64.length} bytes)`);
+  return `data:image/svg+xml;base64,${base64}`;
 }
 
 /**
@@ -89,10 +300,29 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
   const slides = slidesJSON.slides || [];
 
-  // Fetch images concurrently for content slides
+  // Fetch images concurrently for content slides using the fallback chain:
+  // Wikimedia Commons -> Unsplash API -> Generated SVG Diagram
   const imagePromises = slides.map(async (s) => {
-    if (s.type === 'content' && s.imageKeywords) {
-      s.imageBase64 = await fetchImageAsBase64(s.imageKeywords);
+    if (s.type === 'content') {
+      const phrase = s.imageSearchPhrase || s.imageKeywords;
+      let base64 = null;
+
+      // Step 1: Wikimedia Commons First
+      if (phrase) {
+        base64 = await fetchFromWikimedia(phrase);
+      }
+
+      // Step 2: Unsplash API Second
+      if (!base64 && phrase) {
+        base64 = await fetchFromUnsplash(phrase);
+      }
+
+      // Step 3: Dynamically Generated SVG Diagram Third
+      if (!base64) {
+        base64 = generateSVGDiagram(s.title, s.visualDescription, accentHex);
+      }
+
+      s.imageBase64 = base64;
     }
   });
   await Promise.all(imagePromises);

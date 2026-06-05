@@ -215,7 +215,7 @@ You must output a single, valid JSON object following this EXACT structure:
         "Fourth key point (optional): Short keyword or phrase"
       ],
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
-      "imageKeywords": "2-3 comma-separated search keywords to fetch a relevant photographic image matching the slide subject (e.g., 'electoral,college,ballot' or 'starch,glucose,leaf').",
+      "imageSearchPhrase": "A specific, descriptive search phrase to fetch a relevant photographic image or historical painting from Wikimedia Commons or Unsplash (e.g., 'Constitutional Convention 1787 painting', 'United States Senate chamber photo', or 'green leaf photosynthesis cellular diagram'). Do not use generic, loose keywords.",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
