@@ -248,7 +248,7 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
 
   const userPrompt = `Generate a structured slide deck for:
 - Student Age Group: Ages ${ageGroup}
-- Selected Visual Theme: ${theme}
+- Selected Accent Color: ${theme}
 
 Here is the chronological transcript of the educational video:
 === START TRANSCRIPT ===

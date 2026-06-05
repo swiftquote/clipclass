@@ -2,92 +2,71 @@ import pptxgen from 'pptxgenjs';
 
 /**
  * Compiles a structured slides JSON object into a styled PPTX file buffer.
+ * Enforces global off-white background, near-black text, and a clean sans-serif (Inter).
  * 
  * @param {Object} slidesJSON - The JSON structure containing slide definitions
- * @param {string} themeName - Theme option (e.g. "Default", "Sleek Dark", "Warm Editorial", "Bright Playground")
+ * @param {string} accentName - Accent color choice (e.g. "Cobalt Blue", "Emerald Green", "Terracotta Rust", "Royal Purple", "Crimson Red")
  * @returns {Promise<Buffer>} The generated PPTX file buffer
  */
-export async function compilePresentation(slidesJSON, themeName = "Default") {
+export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue") {
   const pptx = new pptxgen();
   
   // Set presentation layout to widescreen (16:9)
   pptx.layout = 'LAYOUT_16x9';
 
-  // Define color palettes for each theme
-  const themes = {
-    "Default": {
-      bg: "F8FAFC",       // slate-50
-      text: "0F172A",     // slate-900
-      accent: "2563EB",   // blue-600
-      cardBg: "E2E8F0",   // slate-200
-      cardText: "334155", // slate-700
-      font: "Inter"
-    },
-    "Sleek Dark": {
-      bg: "0F172A",       // slate-900
-      text: "F8FAFC",     // slate-50
-      accent: "10B981",   // emerald-500
-      cardBg: "1E293B",   // slate-800
-      cardText: "E2E8F0", // slate-200
-      font: "Inter"
-    },
-    "Warm Editorial": {
-      bg: "FAF7F0",       // Cream/Warm Sand
-      text: "2D2727",     // Dark brown-grey
-      accent: "C2410C",   // Terracotta/Rust orange
-      cardBg: "F3EFE0",   // Soft beige
-      cardText: "4A3F3F", // Muted dark
-      font: "Georgia"
-    },
-    "Bright Playground": {
-      bg: "FEFBE8",       // Yellow-50
-      text: "1E3A8A",     // Navy-900
-      accent: "F97316",   // Orange-500
-      cardBg: "FEF9C3",   // Yellow-100
-      cardText: "1E3A8A", // Navy-900
-      font: "Comic Sans MS" // Highly readable for younger learners
-    }
+  // Enforce global styling guidelines
+  const BG_COLOR = "FAFAF8";      // Soft off-white (less projector glare)
+  const TEXT_COLOR = "1A1A1A";    // Near-black (high contrast)
+  const FONT_FAMILY = "Inter";    // Unified web-safe clean sans-serif
+
+  // Accent Colors Slot (tinted per subject/branding)
+  const accents = {
+    "Cobalt Blue": "2563EB",
+    "Emerald Green": "10B981",
+    "Terracotta Rust": "C2410C",
+    "Royal Purple": "7C3AED",
+    "Crimson Red": "DC2626"
   };
 
-  const style = themes[themeName] || themes["Default"];
+  const accentHex = accents[accentName] || accents["Cobalt Blue"];
 
   const slides = slidesJSON.slides || [];
 
   for (const s of slides) {
     const slide = pptx.addSlide();
     
-    // 1. Set background color
-    slide.background = { fill: style.bg };
+    // Set global off-white background
+    slide.background = { fill: BG_COLOR };
 
-    // 2. Map notes
+    // Attach speaker notes
     if (s.notes) {
       slide.addNotes(s.notes);
     }
 
     switch (s.type) {
       case 'title':
-        // Big Title
+        // Big Title (38pt, clean sans-serif, accent color)
         slide.addText(s.title || "Lesson Topic", {
           x: 0.8,
           y: 1.5,
           w: 8.4,
           h: 1.5,
-          fontSize: 44,
+          fontSize: 38,
           bold: true,
-          color: style.accent,
-          fontFace: style.font,
+          color: accentHex,
+          fontFace: FONT_FAMILY,
           valign: 'middle'
         });
 
-        // Subtitle
+        // Subtitle (22pt, near-black text)
         slide.addText(s.subtitle || "Subject & Level", {
           x: 0.8,
           y: 3.2,
           w: 8.4,
           h: 0.8,
           fontSize: 22,
-          color: style.text,
-          fontFace: style.font,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
           valign: 'top'
         });
 
@@ -97,28 +76,28 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
           y: 3.0,
           w: 3.0,
           h: 0.08,
-          fill: { color: style.accent }
+          fill: { color: accentHex }
         });
         break;
 
       case 'objectives':
-        // Section Header
+        // Section Header (38pt, bold, accent color)
         slide.addText(s.title || "Learning Objectives", {
           x: 0.8,
           y: 0.5,
           w: 8.4,
           h: 0.8,
-          fontSize: 32,
+          fontSize: 38,
           bold: true,
-          color: style.accent,
-          fontFace: style.font
+          color: accentHex,
+          fontFace: FONT_FAMILY
         });
 
-        // Objective items
+        // Objective items (24pt, near-black, bulleted)
         if (s.bullets && s.bullets.length > 0) {
           const listItems = s.bullets.map(b => ({
             text: b,
-            options: { fontSize: 24, fontFace: style.font, color: style.text, bullet: true, lineSpacing: 36 }
+            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 36 }
           }));
 
           slide.addText(listItems, {
@@ -132,23 +111,23 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
         break;
 
       case 'agenda':
-        // Section Header
-        slide.addText(s.title || "Roadmap", {
+        // Section Header (38pt, bold, near-black or accent)
+        slide.addText(s.title || "Lesson Roadmap", {
           x: 0.8,
           y: 0.5,
           w: 8.4,
           h: 0.8,
-          fontSize: 32,
+          fontSize: 38,
           bold: true,
-          color: style.accent,
-          fontFace: style.font
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY
         });
 
-        // Agenda items
+        // Agenda items (22pt, near-black, bulleted)
         if (s.bullets && s.bullets.length > 0) {
           const listItems = s.bullets.map(b => ({
             text: b,
-            options: { fontSize: 22, fontFace: style.font, color: style.text, bullet: true, lineSpacing: 32 }
+            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 32 }
           }));
 
           slide.addText(listItems, {
@@ -162,7 +141,7 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
         break;
 
       case 'content':
-        // Assertion Header (a full sentence summarizing the slide)
+        // Assertion Header (a full-sentence claim, 26pt, bold, near-black)
         slide.addText(s.title || "", {
           x: 0.6,
           y: 0.3,
@@ -170,17 +149,16 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
           h: 0.9,
           fontSize: 26,
           bold: true,
-          color: style.text,
-          fontFace: style.font,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
           valign: 'middle'
         });
 
-        // Split Layout: Bullets on Left, Visual Evidence Card on Right
-        // Left Column: Core Idea Bullet Points (Max 4, short phrases, size 24pt+)
+        // Split Layout: Bullets on Left (24pt), Visual Evidence Card on Right
         if (s.bullets && s.bullets.length > 0) {
           const contentItems = s.bullets.slice(0, 4).map(b => ({
             text: b,
-            options: { fontSize: 22, fontFace: style.font, color: style.text, bullet: true, lineSpacing: 30 }
+            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 34 }
           }));
 
           slide.addText(contentItems, {
@@ -192,20 +170,20 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
           });
         }
 
-        // Right Column: Visual Evidence Card (High Contrast & Clear)
+        // Right Column: Visual Evidence Card (with accent color border highlights)
         slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
           x: 5.1,
           y: 1.4,
           w: 4.3,
           h: 3.6,
-          fill: { color: style.cardBg },
-          line: { color: style.accent, width: 2 }
+          fill: { color: "F1F5F9" }, // Slate-100 card fill
+          line: { color: accentHex, width: 2 }
         });
 
         // Text inside the Visual Card
         slide.addText([
-          { text: "📊 VISUAL EVIDENCE:\n\n", options: { bold: true, fontSize: 16, color: style.accent, fontFace: style.font } },
-          { text: s.visualDescription || "Diagram placeholder detailing key concept dynamics.", options: { fontSize: 14, color: style.cardText, fontFace: style.font } }
+          { text: "📊 VISUAL EVIDENCE:\n\n", options: { bold: true, fontSize: 16, color: accentHex, fontFace: FONT_FAMILY } },
+          { text: s.visualDescription || "Diagram placeholder detailing key concept dynamics.", options: { fontSize: 14, color: TEXT_COLOR, fontFace: FONT_FAMILY } }
         ], {
           x: 5.3,
           y: 1.6,
@@ -216,19 +194,19 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
         break;
 
       case 'interactive':
-        // Header
+        // Header (38pt, bold, accent color)
         slide.addText(s.title || "Check for Understanding", {
           x: 0.8,
           y: 0.5,
           w: 8.4,
           h: 0.8,
-          fontSize: 32,
+          fontSize: 38,
           bold: true,
-          color: style.accent,
-          fontFace: style.font
+          color: accentHex,
+          fontFace: FONT_FAMILY
         });
 
-        // Question block
+        // Question block (24pt, bold, near-black)
         slide.addText(s.question || "Discuss the main takeaway.", {
           x: 0.8,
           y: 1.3,
@@ -236,8 +214,8 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
           h: 1.0,
           fontSize: 24,
           bold: true,
-          color: style.text,
-          fontFace: style.font,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
           valign: 'middle'
         });
 
@@ -254,8 +232,8 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
               y: yPos,
               w: 8.4,
               h: rowHeight,
-              fill: { color: isCorrect ? style.cardBg : style.bg },
-              line: { color: isCorrect ? style.accent : style.cardBg, width: isCorrect ? 2 : 1 }
+              fill: { color: isCorrect ? "F1F5F9" : BG_COLOR },
+              line: { color: isCorrect ? accentHex : "E2E8F0", width: isCorrect ? 2 : 1 }
             });
 
             // Option text
@@ -266,8 +244,8 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
               h: rowHeight,
               fontSize: 18,
               bold: !!isCorrect,
-              color: isCorrect ? style.accent : style.text,
-              fontFace: style.font,
+              color: isCorrect ? accentHex : TEXT_COLOR,
+              fontFace: FONT_FAMILY,
               valign: 'middle'
             });
           });
@@ -275,23 +253,23 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
         break;
 
       case 'summary':
-        // Section Header
+        // Section Header (38pt, bold, accent color)
         slide.addText(s.title || "Key Takeaways", {
           x: 0.8,
           y: 0.5,
           w: 8.4,
           h: 0.8,
-          fontSize: 32,
+          fontSize: 38,
           bold: true,
-          color: style.accent,
-          fontFace: style.font
+          color: accentHex,
+          fontFace: FONT_FAMILY
         });
 
-        // Summary bullets
+        // Summary bullets (24pt, near-black)
         if (s.bullets && s.bullets.length > 0) {
           const summaryItems = s.bullets.map(b => ({
             text: b,
-            options: { fontSize: 24, fontFace: style.font, color: style.text, bullet: true, lineSpacing: 36 }
+            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 36 }
           }));
 
           slide.addText(summaryItems, {
@@ -311,16 +289,16 @@ export async function compilePresentation(slidesJSON, themeName = "Default") {
           y: 0.5,
           w: 8.4,
           h: 0.8,
-          fontSize: 32,
+          fontSize: 38,
           bold: true,
-          color: style.accent,
-          fontFace: style.font
+          color: accentHex,
+          fontFace: FONT_FAMILY
         });
 
         if (s.bullets && s.bullets.length > 0) {
           const fallbackItems = s.bullets.map(b => ({
             text: b,
-            options: { fontSize: 22, fontFace: style.font, color: style.text, bullet: true }
+            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true }
           }));
 
           slide.addText(fallbackItems, {

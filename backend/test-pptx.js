@@ -24,7 +24,7 @@ async function runTest() {
     const slidesJSON = await generatePowerpointContent({
       timedSegments: mockSegments,
       ageGroup: "14-16",
-      theme: "Sleek Dark"
+      theme: "Royal Purple"
     });
 
     console.log("\n✅ AI Slide JSON Synthesis Succeeded!");
@@ -64,7 +64,7 @@ async function runTest() {
     }
 
     console.log("\nCompiling slides JSON into a PPTX presentation file...");
-    const pptxBuffer = await compilePresentation(slidesJSON, "Sleek Dark");
+    const pptxBuffer = await compilePresentation(slidesJSON, "Royal Purple");
     
     const outputFilename = "test_presentation.pptx";
     const outputPath = path.resolve(outputFilename);
