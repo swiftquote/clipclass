@@ -61,20 +61,35 @@ export function isImageRelevant(imageTitleOrUrl, searchPhrase) {
     'in', 'on', 'with', 'for', 'at', 'by', 'from', 'to'
   ]);
   
-  // Extract clean keywords from search phrase
+  // Extract clean keywords from search phrase and stem them
   const keywords = searchPhrase
     .toLowerCase()
     .replace(/[^\w\s]/g, '')
     .split(/\s+/)
     .map(w => w.trim())
-    .filter(w => w.length > 2 && !stopWords.has(w)); // Only words longer than 2 characters and not stop words
+    .filter(w => w.length > 2 && !stopWords.has(w))
+    .map(w => {
+      // Suffix-stripping stemmer
+      let stem = w
+        .replace(/(?:ing|ed|es|s|al|ic|tion|ment|able|y|ive|ful|less|ness)$/g, '')
+        .replace(/e$/g, '');
+      return stem.length >= 3 ? stem : w; // fallback to original word if stem is too short
+    });
 
   if (keywords.length === 0) return true; // Accept by default if no matching keywords remain
 
-  // Verify if at least one keyword is contained in the target filename/url
-  const matches = keywords.some(kw => cleanTarget.includes(kw));
+  // Verify if at least one keyword stem is contained in the target filename/url (or its 4-character prefix)
+  const matches = keywords.some(kw => {
+    if (cleanTarget.includes(kw)) return true;
+    if (kw.length >= 4) {
+      const prefix = kw.slice(0, 4);
+      if (cleanTarget.includes(prefix)) return true;
+    }
+    return false;
+  });
+
   if (!matches) {
-    console.log(`[Relevance Check] Rejected "${imageTitleOrUrl}" for query "${searchPhrase}". Keywords missing: [${keywords.join(', ')}]`);
+    console.log(`[Relevance Check] Rejected "${imageTitleOrUrl}" for query "${searchPhrase}". Keywords stems: [${keywords.join(', ')}]`);
   } else {
     console.log(`[Relevance Check] Accepted "${imageTitleOrUrl}" for query "${searchPhrase}".`);
   }
@@ -199,121 +214,7 @@ async function fetchFromUnsplash(phrase) {
   }
 }
 
-/**
- * Generates a beautiful vector SVG diagram card matching the slide topic.
- * Uses the custom presentation accent color for cohesive styling.
- * 
- * @param {string} title - Slide title
- * @param {string} description - Diagram visual description
- * @param {string} accentHex - Accent theme color hex code
- * @returns {string} Base64 SVG data URI
- */
-function generateSVGDiagram(title, description, accentHex) {
-  // XML escaping helper
-  const escapeXML = (str) => {
-    if (!str) return '';
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-  };
 
-  const cleanTitle = escapeXML(title || 'Educational Concept');
-  const cleanDesc = escapeXML(description || '');
-
-  // Wrap description text into lines of ~40 characters for visual layout
-  const words = cleanDesc.split(' ');
-  const lines = [];
-  let currentLine = '';
-  for (const w of words) {
-    if ((currentLine + ' ' + w).length > 40) {
-      lines.push(currentLine);
-      currentLine = w;
-    } else {
-      currentLine = currentLine ? currentLine + ' ' + w : w;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  
-  const displayLines = lines.slice(0, 4); // Show up to 4 lines in the diagram card
-
-  // Generate SVG code
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
-  <defs>
-    <!-- Background Gradient -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FAFAF8" />
-      <stop offset="100%" stop-color="#F1F5F9" />
-    </linearGradient>
-    
-    <!-- Accent Color Gradients -->
-    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#${accentHex}" />
-      <stop offset="100%" stop-color="#${accentHex}BB" />
-    </linearGradient>
-    
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#1E293B" flood-opacity="0.1" />
-    </filter>
-  </defs>
-
-  <!-- Outer Card Frame -->
-  <rect x="20" y="20" width="760" height="560" rx="28" fill="url(#bgGrad)" stroke="#${accentHex}" stroke-width="4" filter="url(#shadow)" />
-  
-  <!-- Subtle Grid Blueprint Grid -->
-  <pattern id="blueprintGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E2E8F0" stroke-width="1.5" />
-  </pattern>
-  <rect x="30" y="30" width="740" height="540" rx="22" fill="url(#blueprintGrid)" opacity="0.6" />
-
-  <!-- Diagram Nodes Graphics (Stylized Concept Flow) -->
-  <g transform="translate(400, 210)">
-    <!-- Central Node -->
-    <circle cx="0" cy="0" r="55" fill="url(#accentGrad)" filter="url(#shadow)" />
-    <circle cx="0" cy="0" r="48" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="6,4" />
-    
-    <!-- Left Input Node -->
-    <circle cx="-160" cy="0" r="42" fill="#FFFFFF" stroke="#${accentHex}" stroke-width="3" filter="url(#shadow)" />
-    <path d="M -160 -15 L -160 15 M -175 0 L -145 0" stroke="#${accentHex}" stroke-width="4" stroke-linecap="round" />
-    
-    <!-- Right Output Node -->
-    <circle cx="160" cy="0" r="42" fill="#FFFFFF" stroke="#${accentHex}" stroke-width="3" filter="url(#shadow)" />
-    <!-- Checkmark icon inside right node -->
-    <path d="M 148 0 L 156 8 L 172 -8" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" stroke-linecap="round" />
-
-    <!-- Connecting Arrows -->
-    <!-- Left to Center Arrow -->
-    <path d="M -105 0 L -70 0" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" />
-    <path d="M -73 -8 L -65 0 L -73 8" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" stroke-linecap="round" />
-
-    <!-- Center to Right Arrow -->
-    <path d="M 70 0 L 105 0" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" />
-    <path d="M 102 -8 L 110 0 L 102 8" fill="none" stroke="#${accentHex}" stroke-width="5" stroke-linecap="round" stroke-linecap="round" />
-    
-    <!-- Decorative orbits -->
-    <path d="M -220 -80 Q 0 -140 220 -80" fill="none" stroke="#${accentHex}" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
-    <path d="M -220 80 Q 0 140 220 80" fill="none" stroke="#${accentHex}" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
-  </g>
-
-  <!-- Title / Central Concept Text -->
-  <text x="400" y="420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif" font-size="28" font-weight="800" fill="#1A1A1A" text-anchor="middle">
-    ${cleanTitle}
-  </text>
-
-  <!-- Multi-line description mapping inside SVG -->
-  ${displayLines.map((line, idx) => `
-    <text x="400" y="${470 + (idx * 26)}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif" font-size="16" font-weight="600" fill="#64748B" text-anchor="middle">
-      ${line}
-    </text>
-  `).join('')}
-</svg>`;
-
-  const base64 = Buffer.from(svg).toString('base64');
-  console.log(`[SVG Diagram] Generated vector diagram for: "${title}" (${base64.length} bytes)`);
-  return `data:image/svg+xml;base64,${base64}`;
-}
 
 /**
  * Compiles a structured slides JSON object into a styled PPTX file buffer.
@@ -348,7 +249,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   const slides = slidesJSON.slides || [];
 
   // Fetch images concurrently for content slides using the fallback chain:
-  // Wikimedia Commons -> Unsplash API -> Generated SVG Diagram
+  // Wikimedia Commons -> Unsplash API -> Native Diagram Fallback (rendered below)
   const imagePromises = slides.map(async (s) => {
     if (s.type === 'content') {
       const phrase = s.imageSearchPhrase || s.imageKeywords;
@@ -362,11 +263,6 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
       // Step 2: Unsplash API Second
       if (!base64 && phrase) {
         base64 = await fetchFromUnsplash(phrase);
-      }
-
-      // Step 3: Dynamically Generated SVG Diagram Third
-      if (!base64) {
-        base64 = generateSVGDiagram(s.title, s.visualDescription, accentHex);
       }
 
       s.imageBase64 = base64;
@@ -537,7 +433,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             valign: 'top'
           });
         } else {
-          // Right Column: Fallback Visual Evidence Card (when image fetch fails)
+          // Right Column: Fallback Native Diagram Card (when image fetch fails)
+          // 1. Draw card background rounded rectangle
           slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
             x: 5.1,
             y: 1.4,
@@ -547,15 +444,117 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             line: { color: accentHex, width: 2 }
           });
 
-          // Text inside the Visual Card
+          // 2. Draw subtle grid backdrop (6 dashed lines in Slate-200)
+          for (let i = 1; i <= 3; i++) {
+            // Vertical grid line
+            slide.addShape(pptx.shapes.LINE, {
+              x: 5.1 + (i * 4.3) / 4,
+              y: 1.4,
+              w: 0,
+              h: 3.6,
+              line: { color: "E2E8F0", width: 1, dashType: 'dash' }
+            });
+            // Horizontal grid line
+            slide.addShape(pptx.shapes.LINE, {
+              x: 5.1,
+              y: 1.4 + (i * 3.6) / 4,
+              w: 4.3,
+              h: 0,
+              line: { color: "E2E8F0", width: 1, dashType: 'dash' }
+            });
+          }
+
+          // 3. Draw connecting lines between nodes
+          slide.addShape(pptx.shapes.LINE, {
+            x: 6.1,
+            y: 2.35,
+            w: 0.8,
+            h: 0,
+            line: { color: accentHex, width: 3 }
+          });
+          slide.addShape(pptx.shapes.LINE, {
+            x: 7.6,
+            y: 2.35,
+            w: 0.8,
+            h: 0,
+            line: { color: accentHex, width: 3 }
+          });
+
+          // 4. Draw Node 1 ("In")
+          slide.addShape(pptx.shapes.OVAL, {
+            x: 5.4,
+            y: 2.0,
+            w: 0.7,
+            h: 0.7,
+            fill: { color: "FFFFFF" },
+            line: { color: accentHex, width: 2 }
+          });
+          slide.addText("In", {
+            x: 5.4,
+            y: 2.0,
+            w: 0.7,
+            h: 0.7,
+            fontSize: 12,
+            bold: true,
+            color: accentHex,
+            fontFace: FONT_FAMILY,
+            align: 'center',
+            valign: 'middle'
+          });
+
+          // 5. Draw Node 2 ("Process")
+          slide.addShape(pptx.shapes.OVAL, {
+            x: 6.9,
+            y: 2.0,
+            w: 0.7,
+            h: 0.7,
+            fill: { color: accentHex }
+          });
+          slide.addText("Process", {
+            x: 6.7,
+            y: 2.0,
+            w: 1.1,
+            h: 0.7,
+            fontSize: 9,
+            bold: true,
+            color: "FFFFFF",
+            fontFace: FONT_FAMILY,
+            align: 'center',
+            valign: 'middle'
+          });
+
+          // 6. Draw Node 3 ("✓")
+          slide.addShape(pptx.shapes.OVAL, {
+            x: 8.4,
+            y: 2.0,
+            w: 0.7,
+            h: 0.7,
+            fill: { color: "FFFFFF" },
+            line: { color: accentHex, width: 2 }
+          });
+          slide.addText("✓", {
+            x: 8.4,
+            y: 2.0,
+            w: 0.7,
+            h: 0.7,
+            fontSize: 16,
+            bold: true,
+            color: accentHex,
+            fontFace: FONT_FAMILY,
+            align: 'center',
+            valign: 'middle'
+          });
+
+          // 7. Place Title / Central Concept and Description/Caption below nodes
           slide.addText([
-            { text: "📊 VISUAL EVIDENCE:\n\n", options: { bold: true, fontSize: 16, color: accentHex, fontFace: FONT_FAMILY } },
-            { text: s.visualDescription || "Diagram placeholder detailing key concept dynamics.", options: { fontSize: 14, color: TEXT_COLOR, fontFace: FONT_FAMILY } }
+            { text: (s.title || "Concept Flow") + "\n\n", options: { bold: true, fontSize: 12, color: TEXT_COLOR, fontFace: FONT_FAMILY } },
+            { text: s.visualDescription || "Diagram detailing key concept dynamics.", options: { fontSize: 11, color: "475569", fontFace: FONT_FAMILY, italic: true } }
           ], {
             x: 5.3,
-            y: 1.6,
+            y: 2.9,
             w: 3.9,
-            h: 3.2,
+            h: 1.9,
+            align: 'center',
             valign: 'top'
           });
         }
