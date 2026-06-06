@@ -254,97 +254,121 @@ Requirements:
 
   const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
   let lastError = null;
+  let totalAttempts = 0;
+  const maxAttempts = 3;
 
   for (const modelName of candidateModels) {
-    try {
-      console.log(`[SVG Generator] Attempting SVG generation using model: ${modelName}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    if (totalAttempts >= maxAttempts) break;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s strict timeout
+    let modelDone = false;
+    while (totalAttempts < maxAttempts && !modelDone) {
+      totalAttempts++;
+      try {
+        console.log(`[SVG Generator] Attempting SVG generation using model: ${modelName} (attempt ${totalAttempts}/${maxAttempts})...`);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-      const response = await fetch(url, {
-        signal: controller.signal,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: systemPrompt
-                }
-              ]
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s strict timeout
+
+        const response = await fetch(url, {
+          signal: controller.signal,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: systemPrompt
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.15
             }
-          ],
-          generationConfig: {
-            temperature: 0.15
+          })
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429) {
+          console.warn(`[SVG Generator] Model ${modelName} rate limited (429) on attempt ${totalAttempts}/${maxAttempts}.`);
+          if (totalAttempts < maxAttempts) {
+            console.log(`[SVG Generator] Waiting 8000ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 8000));
+            continue;
           }
-        })
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.status === 429) {
-        console.warn(`[SVG Generator] Model ${modelName} rate limited (429). Failing fast to native fallback to prevent gateway timeout.`);
-        break; // Fail fast immediately
-      }
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
-      }
-
-      const result = await response.json();
-      let contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (!contentText) {
-        throw new Error(`Model ${modelName} did not return content text.`);
-      }
-
-      // Clean the SVG response to ensure no markdown wraps or trailing explanation remains
-      let cleanSvg = contentText.trim();
-      
-      // Remove markdown code blocks if generated
-      if (cleanSvg.includes("```")) {
-        // Extract content between backticks
-        cleanSvg = cleanSvg.replace(/^```(?:xml|svg|html)?\n([\s\S]*?)\n```$/i, '$1');
-        // Final fallback to clean remaining backticks
-        cleanSvg = cleanSvg.replace(/```/g, '').trim();
-      }
-
-      // If it doesn't start with '<svg', find first '<svg' in the response
-      if (!cleanSvg.startsWith("<svg")) {
-        const svgStartIdx = cleanSvg.indexOf("<svg");
-        if (svgStartIdx !== -1) {
-          cleanSvg = cleanSvg.substring(svgStartIdx);
+          throw new Error(`Model ${modelName} rate limited (429)`);
         }
+
+        if (response.status === 503) {
+          console.warn(`[SVG Generator] Model ${modelName} service unavailable (503) on attempt ${totalAttempts}/${maxAttempts}.`);
+          if (totalAttempts < maxAttempts) {
+            console.log(`[SVG Generator] Waiting 5000ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            continue;
+          }
+          throw new Error(`Model ${modelName} service unavailable (503)`);
+        }
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
+        }
+
+        const result = await response.json();
+        let contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!contentText) {
+          throw new Error(`Model ${modelName} did not return content text.`);
+        }
+
+        // Clean the SVG response to ensure no markdown wraps or trailing explanation remains
+        let cleanSvg = contentText.trim();
+        
+        // Remove markdown code blocks if generated
+        if (cleanSvg.includes("```")) {
+          // Extract content between backticks
+          cleanSvg = cleanSvg.replace(/^```(?:xml|svg|html)?\n([\s\S]*?)\n```$/i, '$1');
+          // Final fallback to clean remaining backticks
+          cleanSvg = cleanSvg.replace(/```/g, '').trim();
+        }
+
+        // If it doesn't start with '<svg', find first '<svg' in the response
+        if (!cleanSvg.startsWith("<svg")) {
+          const svgStartIdx = cleanSvg.indexOf("<svg");
+          if (svgStartIdx !== -1) {
+            cleanSvg = cleanSvg.substring(svgStartIdx);
+          }
+        }
+
+        // If it has trailing text after '</svg>', truncate it
+        const svgEndIdx = cleanSvg.lastIndexOf("</svg>");
+        if (svgEndIdx !== -1) {
+          cleanSvg = cleanSvg.substring(0, svgEndIdx + 6);
+        }
+
+        // Verify that we actually have a valid-looking SVG tag
+        if (!cleanSvg.startsWith("<svg") || !cleanSvg.endsWith("</svg>")) {
+          throw new Error("Generated content does not resemble a valid SVG document structure.");
+        }
+
+        console.log(`[SVG Generator] Successfully generated and parsed SVG diagram (${cleanSvg.length} characters)`);
+        const base64 = Buffer.from(cleanSvg).toString('base64');
+        return `data:image/svg+xml;base64,${base64}`;
+
+      } catch (err) {
+        console.warn(`[SVG Generator] Model ${modelName} attempt ${totalAttempts} failed: ${err.message}.`);
+        lastError = err;
+        modelDone = true;
       }
-
-      // If it has trailing text after '</svg>', truncate it
-      const svgEndIdx = cleanSvg.lastIndexOf("</svg>");
-      if (svgEndIdx !== -1) {
-        cleanSvg = cleanSvg.substring(0, svgEndIdx + 6);
-      }
-
-      // Verify that we actually have a valid-looking SVG tag
-      if (!cleanSvg.startsWith("<svg") || !cleanSvg.endsWith("</svg>")) {
-        throw new Error("Generated content does not resemble a valid SVG document structure.");
-      }
-
-      console.log(`[SVG Generator] Successfully generated and parsed SVG diagram (${cleanSvg.length} characters)`);
-      const base64 = Buffer.from(cleanSvg).toString('base64');
-      return `data:image/svg+xml;base64,${base64}`;
-
-    } catch (err) {
-      console.warn(`[SVG Generator] Model ${modelName} failed: ${err.message}. Retrying...`);
-      lastError = err;
     }
   }
 
-  console.error(`[SVG Generator] All models failed. Last error: ${lastError ? lastError.message : 'Rate limited (429) fail fast'}`);
+  console.error(`[SVG Generator] All models failed. Last error: ${lastError ? lastError.message : 'Unknown error'}`);
   return null;
 }
 
@@ -397,7 +421,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         base64 = await generateSvgFromGemini(s.title, s.visualDescription);
         geminiCallCount++;
       } else {
-        // "photo" (or default) -> run the Wikimedia -> Unsplash chain, SVG only as last resort
+        // "photo" (or default) -> run the Wikimedia -> Unsplash chain
         console.log(`[Slide Visual Route] Slide "${s.title}" is a photo. Searching online...`);
         
         // Step 1: Wikimedia Commons First
@@ -408,17 +432,6 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         // Step 2: Unsplash API Second
         if (!base64 && phrase) {
           base64 = await fetchFromUnsplash(phrase);
-        }
-
-        // Step 3: SVG generation only as last resort
-        if (!base64) {
-          console.log(`[Slide Visual Route] Photo fetch failed for "${s.title}". Falling back to SVG diagram generation...`);
-          if (geminiCallCount > 0) {
-            console.log("[SVG Generator] Delaying 1200ms to respect rate limit...");
-            await new Promise(resolve => setTimeout(resolve, 1200));
-          }
-          base64 = await generateSvgFromGemini(s.title, s.visualDescription);
-          geminiCallCount++;
         }
       }
 
