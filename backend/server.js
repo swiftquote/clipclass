@@ -221,6 +221,7 @@ app.get('/api/diagnostics', (req, res) => {
     groqKey: sanitizeKey(process.env.GROQ_API_KEY),
     roqKey: sanitizeKey(process.env.ROQ_API_KEY),
     geminiKey: sanitizeKey(process.env.GEMINI_API_KEY),
+    hfToken: sanitizeKey(process.env.HF_TOKEN),
     nodeEnv: process.env.NODE_ENV || "not set",
     envKeys: Object.keys(process.env)
   });
