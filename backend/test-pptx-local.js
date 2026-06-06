@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import { compilePresentation, isImageRelevant } from './pptx.js';
+
+dotenv.config();
 
 async function runLocalTest() {
   console.log("==================================================");
@@ -88,6 +91,7 @@ async function runLocalTest() {
         ],
         "visualDescription": "A historical illustration depicting the Constitutional Convention delegates debating the presidential election process.",
         "imageSearchPhrase": "Constitutional Convention 1787 painting",
+        "visualType": "photo",
         "notes": "Good morning, class! [Pacing: 1 min] Today, we're diving into a core part of American democracy: the Electoral College. ..."
       },
       {
@@ -101,6 +105,7 @@ async function runLocalTest() {
         ],
         "visualDescription": "An infographic map of the United States, with each state clearly labeled and displaying its current number of electoral votes.",
         "imageSearchPhrase": "United States Capitol building photo",
+        "visualType": "photo",
         "notes": "[Pacing: 2 mins] So, how many electors does each state get? It's directly tied to their representation in Congress. Ever..."
       },
       {
@@ -114,6 +119,7 @@ async function runLocalTest() {
         ],
         "visualDescription": "An animated graphic showing a U.S. state map. As a candidate 'wins' a state's popular vote, the entire state turns that color.",
         "imageSearchPhrase": "voting ballot box election",
+        "visualType": "photo",
         "notes": "[Pacing: 2.5 mins] This is a crucial aspect: the 'winner-take-all' system. In 48 out of 50 states, if a candidate wins..."
       },
       {
@@ -127,6 +133,7 @@ async function runLocalTest() {
         ],
         "visualDescription": "A concept diagram showing two scales balancing: Popular Vote on the left versus the Electoral College on the right.",
         "imageSearchPhrase": "supercalifragilisticexpialidocious nonexistent search query",
+        "visualType": "diagram",
         "notes": "[Pacing: 3 mins] This is the core analytical concept. It will trigger the fallback SVG diagram generation since no image will be found."
       },
       {
@@ -140,6 +147,7 @@ async function runLocalTest() {
         ],
         "visualDescription": "A map highlighting swing states like Pennsylvania and Michigan in purple.",
         "imageSearchPhrase": "swing states campaign cat",
+        "visualType": "photo",
         "notes": "[Pacing: 2.5 mins] This search query matches general cat photos on Wikimedia Commons, but they will be rejected by the relevance check, triggering our custom SVG diagram instead."
       },
       {

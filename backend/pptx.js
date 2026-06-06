@@ -217,6 +217,127 @@ async function fetchFromUnsplash(phrase) {
 
 
 /**
+ * Call Gemini to dynamically synthesize an educational SVG diagram.
+ * 
+ * @param {string} slideTitle - Title of the slide
+ * @param {string} imageDescription - Detailed visual description of the diagram
+ * @returns {Promise<string|null>} Base64 SVG data URI string, or null on failure
+ */
+async function generateSvgFromGemini(slideTitle, imageDescription) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your-gemini-api-key-here' || apiKey === '') {
+    console.error("[SVG Generator] Gemini API key is missing or not configured.");
+    return null;
+  }
+
+  const systemPrompt = `You are an SVG diagram generator for educational PowerPoint slides.
+
+Generate clean, valid SVG code for the following diagram:
+
+DESCRIPTION: ${imageDescription}
+SLIDE TITLE: ${slideTitle}
+
+Requirements:
+- viewBox="0 0 680 400" (adjust height to fit content)
+- White background, transparent outer container
+- Primary accent colour: #3B5BDB (blue)
+- Secondary colour: #F59F00 (amber) for data cells/values
+- Use red #E03131 only for negative/wrong indicators
+- Font: sans-serif, minimum 13px, all labels clearly readable
+- Include a title label and clear annotations
+- Use simple rectangles, lines, arrows and text only
+- No clipPath, no filters, no gradients, no images
+- Every text element must have a fill colour set explicitly
+- Arrows: draw as lines with a small triangle or chevron end
+- Return ONLY the raw SVG code. 
+  No explanation, no markdown, no backticks.`;
+
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"];
+  let lastError = null;
+
+  for (const modelName of candidateModels) {
+    try {
+      console.log(`[SVG Generator] Attempting SVG generation using model: ${modelName}...`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: systemPrompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.15
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
+      }
+
+      const result = await response.json();
+      let contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!contentText) {
+        throw new Error(`Model ${modelName} did not return content text.`);
+      }
+
+      // Clean the SVG response to ensure no markdown wraps or trailing explanation remains
+      let cleanSvg = contentText.trim();
+      
+      // Remove markdown code blocks if generated
+      if (cleanSvg.includes("```")) {
+        // Extract content between backticks
+        cleanSvg = cleanSvg.replace(/^```(?:xml|svg|html)?\n([\s\S]*?)\n```$/i, '$1');
+        // Final fallback to clean remaining backticks
+        cleanSvg = cleanSvg.replace(/```/g, '').trim();
+      }
+
+      // If it doesn't start with '<svg', find first '<svg' in the response
+      if (!cleanSvg.startsWith("<svg")) {
+        const svgStartIdx = cleanSvg.indexOf("<svg");
+        if (svgStartIdx !== -1) {
+          cleanSvg = cleanSvg.substring(svgStartIdx);
+        }
+      }
+
+      // If it has trailing text after '</svg>', truncate it
+      const svgEndIdx = cleanSvg.lastIndexOf("</svg>");
+      if (svgEndIdx !== -1) {
+        cleanSvg = cleanSvg.substring(0, svgEndIdx + 6);
+      }
+
+      // Verify that we actually have a valid-looking SVG tag
+      if (!cleanSvg.startsWith("<svg") || !cleanSvg.endsWith("</svg>")) {
+        throw new Error("Generated content does not resemble a valid SVG document structure.");
+      }
+
+      console.log(`[SVG Generator] Successfully generated and parsed SVG diagram (${cleanSvg.length} characters)`);
+      const base64 = Buffer.from(cleanSvg).toString('base64');
+      return `data:image/svg+xml;base64,${base64}`;
+
+    } catch (err) {
+      console.warn(`[SVG Generator] Model ${modelName} failed: ${err.message}. Retrying...`);
+      lastError = err;
+    }
+  }
+
+  console.error(`[SVG Generator] All models failed. Last error: ${lastError.message}`);
+  return null;
+}
+
+/**
  * Compiles a structured slides JSON object into a styled PPTX file buffer.
  * Enforces global off-white background, near-black text, and a clean sans-serif (Inter).
  * 
@@ -248,21 +369,35 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
   const slides = slidesJSON.slides || [];
 
-  // Fetch images concurrently for content slides using the fallback chain:
-  // Wikimedia Commons -> Unsplash API -> Native Diagram Fallback (rendered below)
+  // Fetch images/diagrams concurrently for content slides based on visualType:
   const imagePromises = slides.map(async (s) => {
     if (s.type === 'content') {
       const phrase = s.imageSearchPhrase || s.imageKeywords;
       let base64 = null;
 
-      // Step 1: Wikimedia Commons First
-      if (phrase) {
-        base64 = await fetchFromWikimedia(phrase);
-      }
+      if (s.visualType === 'diagram') {
+        // "diagram" -> skip Wikimedia/Unsplash entirely, go straight to SVG generation
+        console.log(`[Slide Visual Route] Slide "${s.title}" is a diagram. Generating SVG...`);
+        base64 = await generateSvgFromGemini(s.title, s.visualDescription);
+      } else {
+        // "photo" (or default) -> run the Wikimedia -> Unsplash chain, SVG only as last resort
+        console.log(`[Slide Visual Route] Slide "${s.title}" is a photo. Searching online...`);
+        
+        // Step 1: Wikimedia Commons First
+        if (phrase) {
+          base64 = await fetchFromWikimedia(phrase);
+        }
 
-      // Step 2: Unsplash API Second
-      if (!base64 && phrase) {
-        base64 = await fetchFromUnsplash(phrase);
+        // Step 2: Unsplash API Second
+        if (!base64 && phrase) {
+          base64 = await fetchFromUnsplash(phrase);
+        }
+
+        // Step 3: SVG generation only as last resort
+        if (!base64) {
+          console.log(`[Slide Visual Route] Photo fetch failed for "${s.title}". Falling back to SVG diagram generation...`);
+          base64 = await generateSvgFromGemini(s.title, s.visualDescription);
+        }
       }
 
       s.imageBase64 = base64;
