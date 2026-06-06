@@ -252,7 +252,7 @@ Requirements:
 - Return ONLY the raw SVG code. 
   No explanation, no markdown, no backticks.`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
   let lastError = null;
   let totalAttempts = 0;
   const maxAttempts = 3;
@@ -268,7 +268,7 @@ Requirements:
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s strict timeout
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s strict timeout
 
         const response = await fetch(url, {
           signal: controller.signal,
