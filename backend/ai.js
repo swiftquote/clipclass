@@ -215,7 +215,7 @@ You must output a single, valid JSON object following this EXACT structure:
         "Fourth key point (optional): Short keyword or phrase"
       ],
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
-      "imageSearchPhrase": "A specific 3-6 word descriptive phrase optimized for Wikimedia Commons. Follow domain-specific instructions: include 'diagram' or 'labeled' for science/maths; medium like 'painting' or 'photograph' for history; 'map' for geography; 'diagram' or 'schematic' for technology. For abstract concepts, use a concrete real-world object/scene 'photograph' (e.g., 'satellite television broadcast tower photograph' instead of 'soft power'). Avoid generic terms, do not use 'illustration', and never use the slide title.",
+      "imageSearchPhrase": "A specific 3-6 word descriptive phrase in English only optimized for Wikimedia Commons. Specify exact diagrams/concepts (e.g. 'sodium chloride ionic bond electron transfer diagram' instead of 'atom diagram'). Avoid covers, portraits, multi-panel charts, generic terms, the term 'illustration', and the slide title itself. For abstract concepts, use a concrete scene/object photograph (e.g. 'satellite television broadcast tower photograph').",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
@@ -248,13 +248,16 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
 6. Image Search Phrase Guidelines:
    For each content slide, generate an "imageSearchPhrase" to find a relevant educational image on Wikimedia Commons:
    - Write it as a specific 3-6 word descriptive phrase, NOT comma-separated tags.
+   - Always generate phrases in English only. Never include foreign-language terms even if the topic originates from another language.
    - Optimise for Wikimedia Commons search — think about what an educator or textbook author would have uploaded.
-   - For MATHS and SCIENCE slides: include the word "diagram" or "labeled" (e.g. "Pythagoras theorem right triangle labeled", "photosynthesis process diagram", "open loop control system diagram").
+   - Be specific enough that only ONE type of diagram could result. Bad: "atom diagram". Good: "helium atom nucleus electrons labeled diagram". Bad: "carbon structure". Good: "carbon atomic number 6 protons diagram".
+   - For MATHS and SCIENCE slides: always include the specific subject name + the exact concept being shown + "diagram" or "labeled" (e.g. "sodium chloride ionic bond electron transfer diagram", "hydrogen isotopes protium deuterium tritium diagram", "Pythagoras theorem right triangle labeled").
    - For HISTORY and SOCIAL STUDIES slides: include the medium (e.g. "Constitutional Convention 1787 painting", "World War 2 soldiers photograph").
    - For GEOGRAPHY slides: include "map" where relevant (e.g. "United States electoral college map").
    - For TECHNOLOGY slides: include "diagram" or "schematic" (e.g. "CPU processor architecture diagram", "input process output flowchart").
    - For ABSTRACT or CONCEPTUAL slides (theories, ethics, influence, literacy, democracy, culture): do NOT describe the concept itself. Instead, identify a concrete real-world object or scene that represents it (e.g. instead of "soft power media influence" use "satellite television broadcast tower photograph"; instead of "critical media literacy" use "person reading newspaper critical thinking photograph").
    - NEVER use the word "illustration" as a medium in any rule (use "diagram" for STEM/technology and "photograph" for real-world scenes/mediums, as "illustration" returns decorative artwork rather than educational visuals on Wikimedia).
+   - Avoid phrases that return textbook cover images, portrait photos of scientists, or multi-panel reference charts. If the slide is about a single concept, the phrase should return a single focused diagram, not a reference sheet.
    - NEVER generate a phrase that would return a generic stock photo (avoid: "people working", "student learning", "technology concept").
    - NEVER use the slide title as the phrase — be more specific about the actual visual needed.
 7. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
