@@ -647,20 +647,6 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             h: 2.7,
             sizing: { type: 'cover', w: 4.3, h: 2.7 }
           });
-
-          // Text caption below the image
-          slide.addText(s.visualDescription || "", {
-            x: 5.1,
-            y: 4.25,
-            w: 4.3,
-            h: 0.9,
-            fontSize: 11,
-            italic: true,
-            color: "64748B", // Slate-500
-            fontFace: FONT_FAMILY,
-            align: 'center',
-            valign: 'top'
-          });
         } else {
           // Right Column: Fallback Native Diagram Card (when image fetch fails)
           // 1. Draw card background rounded rectangle
