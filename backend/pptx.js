@@ -1,30 +1,47 @@
 import pptxgen from 'pptxgenjs';
 
 /**
- * Generates an image using Pollinations AI (Flux model) and returns it as a Base64 data URI.
+ * Generates an image using Hugging Face Inference API and returns it as a Base64 data URI.
  *
  * @param {string} visualDescription - Slide image description text
  * @returns {Promise<string|null>} Base64 image data URI string, or null on failure
  */
-async function generateImageFromPollinations(visualDescription) {
+async function generateImageFromHuggingFace(visualDescription) {
   if (!visualDescription) return null;
 
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(visualDescription)}?width=1024&height=768&model=flux&nologo=true`;
+  const token = process.env.HF_TOKEN;
+  if (!token) {
+    console.error("[Image Generator] Hugging Face token (HF_TOKEN) is missing.");
+    return null;
+  }
+
+  const url = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
 
   try {
-    console.log(`[Image Generator] Fetching image from Pollinations for: "${visualDescription.substring(0, 60)}..."`);
-    const response = await fetch(url, { signal: controller.signal });
+    console.log(`[Image Generator] Fetching image from Hugging Face for: "${visualDescription.substring(0, 60)}..."`);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ inputs: visualDescription })
+    });
+
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      throw new Error(`Pollinations API responded with status ${response.status}`);
+      throw new Error(`Hugging Face Inference API responded with status ${response.status}`);
     }
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    return `data:${contentType};base64,${base64}`;
+
+    const buffer = await response.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    return `data:image/jpeg;base64,${base64}`;
   } catch (err) {
-    console.error("[Image Generator] Pollinations image generation failed:", err.message);
+    console.error("[Image Generator] Hugging Face image generation failed:", err.message);
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -66,7 +83,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   // Generate slide visuals sequentially.
   for (const s of slides) {
     if (s.type === 'content') {
-      s.imageBase64 = await generateImageFromPollinations(s.visualDescription);
+      s.imageBase64 = await generateImageFromHuggingFace(s.visualDescription);
     }
   }
 
