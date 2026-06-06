@@ -1,7 +1,110 @@
-// ClipClass AI Synthesis Layer - Interfaces with Google Gemini API using native JSON output
+// ClipClass AI Synthesis Layer - Interfaces with Groq, with Gemini fallback
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+async function callGroqJSON({ systemPrompt, userPrompt, temperature, logPrefix }) {
+  const apiKey = process.env.GROQ_API_KEY;
+
+  console.log(`[${logPrefix}] Attempting synthesis using Groq model: ${GROQ_MODEL}...`);
+
+  const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Groq model ${GROQ_MODEL} responded with status ${response.status}: ${errText}`);
+  }
+
+  const result = await response.json();
+  const contentText = result.choices?.[0]?.message?.content;
+
+  if (!contentText) {
+    throw new Error(`Groq model ${GROQ_MODEL} did not return content text.`);
+  }
+
+  const payload = JSON.parse(contentText.trim());
+  console.log(`[${logPrefix}] Successfully synthesized JSON using Groq model: ${GROQ_MODEL}`);
+  return payload;
+}
+
+async function callGeminiJSON({ systemPrompt, userPrompt, temperature, logPrefix, successLabel }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your-gemini-api-key-here' || apiKey === '') {
+    throw new Error("Gemini API key is missing or not configured.");
+  }
+
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
+  let lastError = null;
+
+  for (const modelName of candidateModels) {
+    try {
+      console.log(`[${logPrefix}] Attempting synthesis using Gemini model: ${modelName}...`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `${systemPrompt}\n\n${userPrompt}`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
+      }
+
+      const result = await response.json();
+      const contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!contentText) {
+        throw new Error(`Model ${modelName} did not return content text.`);
+      }
+
+      const payload = JSON.parse(contentText.trim());
+      console.log(`[${logPrefix}] Successfully synthesized ${successLabel} using Gemini model: ${modelName}`);
+      return payload;
+
+    } catch (err) {
+      console.warn(`[${logPrefix}] Gemini model failed or throttled: ${err.message}. Retrying next candidate...`);
+      lastError = err;
+    }
+  }
+
+  throw lastError;
+}
 
 /**
  * Generates age-appropriate student worksheets and teacher answer keys using Gemini 1.5 Flash.
@@ -12,11 +115,6 @@ dotenv.config();
  * @param {boolean} gamifiedTrivia - Whether to generate an interactive team trivia script
  */
 export async function generateWorksheetContent({ timedSegments, ageGroup, translationLanguage = "None", gamifiedTrivia, questionsCount = 10 }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'your-gemini-api-key-here' || apiKey === '') {
-    throw new Error("Gemini API key is missing or not configured in .env. Please configure your GEMINI_API_KEY first.");
-  }
-
   // Format the transcript segments as a readable timeline script for the LLM
   const formattedTranscript = timedSegments
     .map(seg => `[${seg.time}] ${seg.text}`)
@@ -90,61 +188,32 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
-  let lastError = null;
-
-  for (const modelName of candidateModels) {
+  if (process.env.GROQ_API_KEY) {
     try {
-      console.log(`[AI Layer] Attempting worksheet synthesis using model: ${modelName}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `${systemPrompt}\n\n${userPrompt}`
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.3
-          }
-        })
+      return await callGroqJSON({
+        systemPrompt,
+        userPrompt,
+        temperature: 0.3,
+        logPrefix: "AI Layer"
       });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
-      }
-
-      const result = await response.json();
-      const contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (!contentText) {
-        throw new Error(`Model ${modelName} did not return content text.`);
-      }
-
-      const payload = JSON.parse(contentText.trim());
-      console.log(`[AI Layer] Successfully synthesized workbook using model: ${modelName}`);
-      return payload;
-
     } catch (err) {
-      console.warn(`[AI Layer] Model ${modelName} failed or throttled: ${err.message}. Retrying next candidate...`);
-      lastError = err;
+      console.error("Groq API Workbook Generation Error:", err);
+      throw new Error(`AI synthesis failed using Groq. Last error: ${err.message}`);
     }
   }
 
-  // If all models failed, throw the final error
-  console.error("Google Gemini API Workbook Generation Error (All Models Failed):", lastError);
-  throw new Error(`AI synthesis failed across all active models. Last error: ${lastError.message}`);
+  try {
+    return await callGeminiJSON({
+      systemPrompt,
+      userPrompt,
+      temperature: 0.3,
+      logPrefix: "AI Layer",
+      successLabel: "workbook"
+    });
+  } catch (err) {
+    console.error("Google Gemini API Workbook Generation Error (All Models Failed):", err);
+    throw new Error(`AI synthesis failed across all active models. Last error: ${err.message}`);
+  }
 }
 
 /**
@@ -155,11 +224,6 @@ ${formattedTranscript}
  * @param {string} theme - Style theme name (e.g. "Default", "Warm Editorial", "Sleek Dark")
  */
 export async function generatePowerpointContent({ timedSegments, ageGroup, theme = "Default" }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'your-gemini-api-key-here' || apiKey === '') {
-    throw new Error("Gemini API key is missing or not configured.");
-  }
-
   const formattedTranscript = timedSegments
     .map(seg => `[${seg.time}] ${seg.text}`)
     .join('\n');
@@ -276,58 +340,30 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
-  let lastError = null;
-
-  for (const modelName of candidateModels) {
+  if (process.env.GROQ_API_KEY) {
     try {
-      console.log(`[AI Slide Layer] Attempting PPTX synthesis using model: ${modelName}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `${systemPrompt}\n\n${userPrompt}`
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.35
-          }
-        })
+      return await callGroqJSON({
+        systemPrompt,
+        userPrompt,
+        temperature: 0.35,
+        logPrefix: "AI Slide Layer"
       });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Model ${modelName} responded with status ${response.status}: ${errText}`);
-      }
-
-      const result = await response.json();
-      const contentText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (!contentText) {
-        throw new Error(`Model ${modelName} did not return content text.`);
-      }
-
-      const payload = JSON.parse(contentText.trim());
-      console.log(`[AI Slide Layer] Successfully synthesized slide JSON using model: ${modelName}`);
-      return payload;
-
     } catch (err) {
-      console.warn(`[AI Slide Layer] Model ${modelName} failed or throttled: ${err.message}. Retrying next candidate...`);
-      lastError = err;
+      console.error("Groq API PowerPoint Generation Error:", err);
+      throw new Error(`AI slide synthesis failed using Groq. Last error: ${err.message}`);
     }
   }
 
-  console.error("Google Gemini API PowerPoint Generation Error (All Models Failed):", lastError);
-  throw new Error(`AI slide synthesis failed across all active models. Last error: ${lastError.message}`);
+  try {
+    return await callGeminiJSON({
+      systemPrompt,
+      userPrompt,
+      temperature: 0.35,
+      logPrefix: "AI Slide Layer",
+      successLabel: "slide JSON"
+    });
+  } catch (err) {
+    console.error("Google Gemini API PowerPoint Generation Error (All Models Failed):", err);
+    throw new Error(`AI slide synthesis failed across all active models. Last error: ${err.message}`);
+  }
 }

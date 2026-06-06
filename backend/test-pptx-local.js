@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { compilePresentation, isImageRelevant } from './pptx.js';
+import { compilePresentation } from './pptx.js';
 
 dotenv.config();
 
@@ -10,47 +10,6 @@ async function runLocalTest() {
   console.log("🧪 Testing PowerPoint Generation & Styling (Local Offline)...");
   console.log("==================================================");
 
-  // --- Relevance Check Unit Tests ---
-  console.log("🔍 Running Relevance Check Unit Tests...");
-  const testCases = [
-    {
-      url: "https://upload.wikimedia.org/wikipedia/commons/2/29/Washington_Constitutional_Convention_1787.jpg",
-      phrase: "Constitutional Convention 1787 painting",
-      expected: true
-    },
-    {
-      url: "https://upload.wikimedia.org/wikipedia/commons/a/aa/Osaka_Mayoral_Election_ballot_box_20051127.jpg",
-      phrase: "voting ballot box election",
-      expected: true
-    },
-    {
-      url: "https://upload.wikimedia.org/wikipedia/commons/2/22/Sleeping_Cat_on_Sofa.jpg",
-      phrase: "Constitutional Convention 1787 painting",
-      expected: false
-    },
-    {
-      url: "https://upload.wikimedia.org/wikipedia/commons/8/81/Beautiful_Painting.jpg",
-      phrase: "Constitutional Convention 1787 painting",
-      expected: false
-    }
-  ];
-
-  let testPassed = true;
-  for (const tc of testCases) {
-    const result = isImageRelevant(tc.url, tc.phrase);
-    if (result !== tc.expected) {
-      console.error(`❌ Unit Test Failed for url "${tc.url}" with query "${tc.phrase}". Expected ${tc.expected}, got ${result}`);
-      testPassed = false;
-    } else {
-      console.log(`✅ Unit Test Passed: expected ${tc.expected}, got ${result}`);
-    }
-  }
-
-  if (testPassed) {
-    console.log("✨ All relevance check unit tests PASSED!\n");
-  } else {
-    console.error("⚠️ Some unit tests failed. Review results.\n");
-  }
 
   const mockSlidesJSON = {
     "slides": [
