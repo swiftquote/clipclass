@@ -252,7 +252,7 @@ Requirements:
 - Return ONLY the raw SVG code. 
   No explanation, no markdown, no backticks.`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"];
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
   let lastError = null;
 
   for (const modelName of candidateModels) {
@@ -260,7 +260,11 @@ Requirements:
       console.log(`[SVG Generator] Attempting SVG generation using model: ${modelName}...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s strict timeout
+
       const response = await fetch(url, {
+        signal: controller.signal,
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -280,6 +284,13 @@ Requirements:
           }
         })
       });
+
+      clearTimeout(timeoutId);
+
+      if (response.status === 429) {
+        console.warn(`[SVG Generator] Model ${modelName} rate limited (429). Failing fast to native fallback to prevent gateway timeout.`);
+        break; // Fail fast immediately
+      }
 
       if (!response.ok) {
         const errText = await response.text();
@@ -333,7 +344,7 @@ Requirements:
     }
   }
 
-  console.error(`[SVG Generator] All models failed. Last error: ${lastError.message}`);
+  console.error(`[SVG Generator] All models failed. Last error: ${lastError ? lastError.message : 'Rate limited (429) fail fast'}`);
   return null;
 }
 

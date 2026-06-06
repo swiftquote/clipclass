@@ -90,7 +90,7 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"];
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
   let lastError = null;
 
   for (const modelName of candidateModels) {
@@ -216,6 +216,7 @@ You must output a single, valid JSON object following this EXACT structure:
       ],
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
       "imageSearchPhrase": "A specific 3-6 word descriptive phrase in English only optimized for Wikimedia Commons. Specify exact diagrams/concepts (e.g. 'sodium chloride ionic bond electron transfer diagram' instead of 'atom diagram'). Avoid covers, portraits, multi-panel charts, generic terms, the term 'illustration', and the slide title itself. For abstract concepts, use a concrete scene/object photograph (e.g. 'satellite television broadcast tower photograph').",
+      "visualType": "Specify either 'diagram' (if the slide visual is a labeled diagram, flowchart, step-by-step process, chart, or mathematical illustration) or 'photo' (if the visual requires a real photograph, painting, or map that exists in the world).",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
@@ -260,7 +261,11 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
    - Avoid phrases that return textbook cover images, portrait photos of scientists, or multi-panel reference charts. If the slide is about a single concept, the phrase should return a single focused diagram, not a reference sheet.
    - NEVER generate a phrase that would return a generic stock photo (avoid: "people working", "student learning", "technology concept").
    - NEVER use the slide title as the phrase — be more specific about the actual visual needed.
-7. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
+7. Visual Type Selection Guidelines:
+   For each content slide, output a "visualType" field:
+   - "diagram" — the visual is a labeled diagram, flowchart, step-by-step process, chart, or mathematical illustration (e.g. binary conversion steps, atom structure, circuit diagram, flowchart, Pythagoras triangle, pros/cons comparison, timeline).
+   - "photo" — the visual requires a real photograph, painting, or map that exists in the world (e.g. historical events, real people, places, maps, scientific photographs, artworks).
+8. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
 
   const userPrompt = `Generate a structured slide deck for:
 - Student Age Group: Ages ${ageGroup}
@@ -271,7 +276,7 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"];
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
   let lastError = null;
 
   for (const modelName of candidateModels) {
