@@ -212,13 +212,14 @@ app.get('/api/health', (req, res) => {
 // Diagnostics API Keys config status
 app.get('/api/diagnostics', (req, res) => {
   const sanitizeKey = (key) => {
-    if (!key) return "MISSING";
+    if (key === undefined) return "UNDEFINED";
+    if (key === null) return "NULL";
+    if (key === "") return "EMPTY_STRING";
     return `${key.slice(0, 4)}... (length: ${key.length})`;
   };
   res.status(200).json({
-    hasGroqKey: !!process.env.GROQ_API_KEY,
     groqKey: sanitizeKey(process.env.GROQ_API_KEY),
-    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    roqKey: sanitizeKey(process.env.ROQ_API_KEY),
     geminiKey: sanitizeKey(process.env.GEMINI_API_KEY),
     nodeEnv: process.env.NODE_ENV || "not set",
     envKeys: Object.keys(process.env)
