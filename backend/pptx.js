@@ -758,10 +758,9 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             valign: 'middle'
           });
 
-          // 7. Place Title / Central Concept and Description/Caption below nodes
+          // 7. Place Title / Central Concept below nodes
           slide.addText([
-            { text: (s.title || "Concept Flow") + "\n\n", options: { bold: true, fontSize: 12, color: TEXT_COLOR, fontFace: FONT_FAMILY } },
-            { text: s.visualDescription || "Diagram detailing key concept dynamics.", options: { fontSize: 11, color: "475569", fontFace: FONT_FAMILY, italic: true } }
+            { text: (s.title || "Concept Flow"), options: { bold: true, fontSize: 12, color: TEXT_COLOR, fontFace: FONT_FAMILY } }
           ], {
             x: 5.3,
             y: 2.9,
