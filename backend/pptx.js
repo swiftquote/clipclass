@@ -252,7 +252,7 @@ Requirements:
 - Return ONLY the raw SVG code. 
   No explanation, no markdown, no backticks.`;
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+  const candidateModels = ["gemini-2.5-flash-lite"];
   let lastError = null;
   let totalAttempts = 0;
   const maxAttempts = 3;
@@ -415,8 +415,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         // "diagram" -> skip Wikimedia/Unsplash entirely, go straight to SVG generation
         console.log(`[Slide Visual Route] Slide "${s.title}" is a diagram. Generating SVG...`);
         if (geminiCallCount > 0) {
-          console.log("[SVG Generator] Delaying 1200ms to respect rate limit...");
-          await new Promise(resolve => setTimeout(resolve, 1200));
+          console.log("[SVG Generator] Delaying 4000ms to respect rate limit...");
+          await new Promise(resolve => setTimeout(resolve, 4000));
         }
         base64 = await generateSvgFromGemini(s.title, s.visualDescription);
         geminiCallCount++;
