@@ -381,18 +381,21 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   const slides = slidesJSON.slides || [];
 
   // Fetch images/diagrams sequentially to avoid rate-limiting (429s) on Gemini free tier:
-  let idx = 0;
+  let geminiCallCount = 0;
   for (const s of slides) {
     if (s.type === 'content') {
       const phrase = s.imageSearchPhrase || s.imageKeywords;
       let base64 = null;
-      let didCallGemini = false;
 
       if (s.visualType === 'diagram') {
         // "diagram" -> skip Wikimedia/Unsplash entirely, go straight to SVG generation
         console.log(`[Slide Visual Route] Slide "${s.title}" is a diagram. Generating SVG...`);
+        if (geminiCallCount > 0) {
+          console.log("[SVG Generator] Delaying 1200ms to respect rate limit...");
+          await new Promise(resolve => setTimeout(resolve, 1200));
+        }
         base64 = await generateSvgFromGemini(s.title, s.visualDescription);
-        didCallGemini = true;
+        geminiCallCount++;
       } else {
         // "photo" (or default) -> run the Wikimedia -> Unsplash chain, SVG only as last resort
         console.log(`[Slide Visual Route] Slide "${s.title}" is a photo. Searching online...`);
@@ -410,23 +413,17 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         // Step 3: SVG generation only as last resort
         if (!base64) {
           console.log(`[Slide Visual Route] Photo fetch failed for "${s.title}". Falling back to SVG diagram generation...`);
+          if (geminiCallCount > 0) {
+            console.log("[SVG Generator] Delaying 1200ms to respect rate limit...");
+            await new Promise(resolve => setTimeout(resolve, 1200));
+          }
           base64 = await generateSvgFromGemini(s.title, s.visualDescription);
-          didCallGemini = true;
+          geminiCallCount++;
         }
       }
 
       s.imageBase64 = base64;
-
-      if (didCallGemini) {
-        // Check if there is another content slide after this one in the remaining slides
-        const hasMoreContentSlides = slides.slice(idx + 1).some(nextSlide => nextSlide.type === 'content');
-        if (hasMoreContentSlides) {
-          console.log("[SVG Generator] Delaying 1200ms to respect rate limit...");
-          await new Promise(resolve => setTimeout(resolve, 1200));
-        }
-      }
     }
-    idx++;
   }
 
   const renderSingleInteractiveSlide = (targetSlide, s, highlightAnswer) => {
