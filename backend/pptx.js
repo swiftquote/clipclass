@@ -270,6 +270,66 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   });
   await Promise.all(imagePromises);
 
+  const renderSingleInteractiveSlide = (targetSlide, s, highlightAnswer) => {
+    // Header (38pt, bold, accent color)
+    const titleText = highlightAnswer ? `${s.title || "Check Your Understanding"} (Answer)` : (s.title || "Check Your Understanding");
+    targetSlide.addText(titleText, {
+      x: 0.8,
+      y: 0.5,
+      w: 8.4,
+      h: 0.8,
+      fontSize: 38,
+      bold: true,
+      color: accentHex,
+      fontFace: FONT_FAMILY
+    });
+
+    // Question block (24pt, bold, near-black)
+    targetSlide.addText(s.question || "Discuss the main takeaway.", {
+      x: 0.8,
+      y: 1.3,
+      w: 8.4,
+      h: 1.0,
+      fontSize: 24,
+      bold: true,
+      color: TEXT_COLOR,
+      fontFace: FONT_FAMILY,
+      valign: 'middle'
+    });
+
+    // Options (rendered as neat cards if present)
+    if (s.options && s.options.length > 0) {
+      const rowHeight = 0.6;
+      s.options.slice(0, 4).forEach((opt, idx) => {
+        const isCorrect = highlightAnswer && s.correctAnswer && (opt.startsWith(s.correctAnswer) || opt.includes(s.correctAnswer));
+        const yPos = 2.4 + (idx * (rowHeight + 0.15));
+
+        // Option background card
+        targetSlide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+          x: 0.8,
+          y: yPos,
+          w: 8.4,
+          h: rowHeight,
+          fill: { color: isCorrect ? "F1F5F9" : BG_COLOR },
+          line: { color: isCorrect ? accentHex : "E2E8F0", width: isCorrect ? 2 : 1 }
+        });
+
+        // Option text
+        targetSlide.addText(opt, {
+          x: 1.0,
+          y: yPos,
+          w: 8.0,
+          h: rowHeight,
+          fontSize: 18,
+          bold: !!isCorrect,
+          color: isCorrect ? accentHex : TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle'
+        });
+      });
+    }
+  };
+
   for (const s of slides) {
     const slide = pptx.addSlide();
     
@@ -561,62 +621,16 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         break;
 
       case 'interactive':
-        // Header (38pt, bold, accent color)
-        slide.addText(s.title || "Check for Understanding", {
-          x: 0.8,
-          y: 0.5,
-          w: 8.4,
-          h: 0.8,
-          fontSize: 38,
-          bold: true,
-          color: accentHex,
-          fontFace: FONT_FAMILY
-        });
+        // Render Slide A: The Question slide (highlightAnswer = false)
+        renderSingleInteractiveSlide(slide, s, false);
 
-        // Question block (24pt, bold, near-black)
-        slide.addText(s.question || "Discuss the main takeaway.", {
-          x: 0.8,
-          y: 1.3,
-          w: 8.4,
-          h: 1.0,
-          fontSize: 24,
-          bold: true,
-          color: TEXT_COLOR,
-          fontFace: FONT_FAMILY,
-          valign: 'middle'
-        });
-
-        // Options (rendered as neat cards if present)
-        if (s.options && s.options.length > 0) {
-          const rowHeight = 0.6;
-          s.options.slice(0, 4).forEach((opt, idx) => {
-            const isCorrect = s.correctAnswer && (opt.startsWith(s.correctAnswer) || opt.includes(s.correctAnswer));
-            const yPos = 2.4 + (idx * (rowHeight + 0.15));
-
-            // Option background card
-            slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-              x: 0.8,
-              y: yPos,
-              w: 8.4,
-              h: rowHeight,
-              fill: { color: isCorrect ? "F1F5F9" : BG_COLOR },
-              line: { color: isCorrect ? accentHex : "E2E8F0", width: isCorrect ? 2 : 1 }
-            });
-
-            // Option text
-            slide.addText(opt, {
-              x: 1.0,
-              y: yPos,
-              w: 8.0,
-              h: rowHeight,
-              fontSize: 18,
-              bold: !!isCorrect,
-              color: isCorrect ? accentHex : TEXT_COLOR,
-              fontFace: FONT_FAMILY,
-              valign: 'middle'
-            });
-          });
+        // Render Slide B: The Answer slide (highlightAnswer = true)
+        const answerSlide = pptx.addSlide();
+        answerSlide.background = { fill: BG_COLOR };
+        if (s.notes) {
+          answerSlide.addNotes(s.notes);
         }
+        renderSingleInteractiveSlide(answerSlide, s, true);
         break;
 
       case 'summary':
