@@ -209,6 +209,22 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'healthy', databaseMode: isFirebaseInitialized ? 'firestore' : 'in-memory-fallback' });
 });
 
+// Diagnostics API Keys config status
+app.get('/api/diagnostics', (req, res) => {
+  const sanitizeKey = (key) => {
+    if (!key) return "MISSING";
+    return `${key.slice(0, 4)}... (length: ${key.length})`;
+  };
+  res.status(200).json({
+    hasGroqKey: !!process.env.GROQ_API_KEY,
+    groqKey: sanitizeKey(process.env.GROQ_API_KEY),
+    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    geminiKey: sanitizeKey(process.env.GEMINI_API_KEY),
+    nodeEnv: process.env.NODE_ENV || "not set",
+    envKeys: Object.keys(process.env)
+  });
+});
+
 // Public Privacy Policy HTML Page
 app.get('/privacy-policy', (req, res) => {
   const html = `
