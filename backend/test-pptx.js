@@ -37,7 +37,10 @@ async function runTest() {
       console.log(`   Header: "${s.title || s.question || 'No Title'}"`);
       if (s.bullets) console.log(`   Bullets count: ${s.bullets.length}`);
       if (s.visualDescription) console.log(`   Visual: "${s.visualDescription.substring(0, 80)}..."`);
-      if (s.notes) console.log(`   Speaker Notes: "${s.notes.substring(0, 100).replace(/\n/g, ' ')}..."`);
+      if (s.notes) {
+        const notesStr = Array.isArray(s.notes) ? s.notes.join(' ') : String(s.notes);
+        console.log(`   Speaker Notes: "${notesStr.substring(0, 100).replace(/\n/g, ' ')}..."`);
+      }
       console.log("");
     });
     console.log("---------------------------------\n");
