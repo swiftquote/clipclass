@@ -6,8 +6,13 @@ dotenv.config();
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+const getGroqApiKey = () => {
+  const key = process.env.GROQ_API_KEY || process.env.ROQ_API_KEY;
+  return (key && key.trim().length > 0) ? key : null;
+};
+
 async function callGroqJSON({ systemPrompt, userPrompt, temperature, logPrefix }) {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = getGroqApiKey();
 
   console.log(`[${logPrefix}] Attempting synthesis using Groq model: ${GROQ_MODEL}...`);
 
@@ -188,7 +193,7 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  if (process.env.GROQ_API_KEY) {
+  if (getGroqApiKey()) {
     try {
       return await callGroqJSON({
         systemPrompt,
@@ -340,7 +345,7 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  if (process.env.GROQ_API_KEY) {
+  if (getGroqApiKey()) {
     try {
       return await callGroqJSON({
         systemPrompt,
