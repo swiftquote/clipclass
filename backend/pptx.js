@@ -154,32 +154,32 @@ async function fetchFromWikimedia(phrase) {
 }
 
 /**
- * Searches Unsplash API for photos matching the search phrase.
- * Requires UNSPLASH_ACCESS_KEY or UNSPLASH_CLIENT_ID to be set in environment variables.
+ * Searches Pexels API for photos matching the search phrase.
+ * Requires PEXELS_API_KEY to be set in environment variables.
  * 
  * @param {string} phrase - Descriptive search phrase
  * @returns {Promise<string|null>} Base64 image data URI, or null on failure
  */
-async function fetchFromUnsplash(phrase) {
+async function fetchFromPexels(phrase) {
   if (!phrase) return null;
 
-  const accessKey = process.env.UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_CLIENT_ID;
-  if (!accessKey) {
-    console.log(`[Unsplash Fetch] Skipping search. No UNSPLASH_ACCESS_KEY found in environment.`);
+  const apiKey = process.env.PEXELS_API_KEY;
+  if (!apiKey) {
+    console.warn(`[Pexels Fetch] Warning: PEXELS_API_KEY is missing or not configured.`);
     return null;
   }
 
-  const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(phrase)}&per_page=5`;
-  console.log(`[Unsplash Fetch] Querying Unsplash API for: "${phrase}"`);
+  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(phrase)}&per_page=5`;
+  console.log(`[Pexels Fetch] Querying Pexels API for: "${phrase}"`);
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s API search timeout
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s API search timeout
 
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'Authorization': `Client-ID ${accessKey}`,
+        'Authorization': apiKey,
         'User-Agent': 'ClipClassEducationalApp/1.0 (mismail17.308@gmail.com)'
       }
     });
@@ -187,29 +187,27 @@ async function fetchFromUnsplash(phrase) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Unsplash API responded with status ${response.status}`);
+      throw new Error(`Pexels API responded with status ${response.status}`);
     }
 
     const data = await response.json();
-    if (data.results && data.results.length > 0) {
-      for (const item of data.results) {
-        const imageUrl = item.urls?.regular || item.urls?.small;
-        if (imageUrl) {
-          // Relevance Check
-          if (isImageRelevant(imageUrl, phrase)) {
-            console.log(`[Unsplash Fetch] Found candidate photo: ${imageUrl}`);
-            const base64 = await fetchImageFromUrlAsBase64(imageUrl);
-            if (base64) {
-              return base64;
-            }
+    if (data.photos && data.photos.length > 0) {
+      const imageUrl = data.photos[0].src?.large;
+      if (imageUrl) {
+        // Relevance Check
+        if (isImageRelevant(imageUrl, phrase)) {
+          console.log(`[Pexels Fetch] Found candidate photo: ${imageUrl}`);
+          const base64 = await fetchImageFromUrlAsBase64(imageUrl);
+          if (base64) {
+            return base64;
           }
         }
       }
     }
-    console.log(`[Unsplash Fetch] No photos found on Unsplash for: "${phrase}"`);
+    console.log(`[Pexels Fetch] No photos found on Pexels for: "${phrase}"`);
     return null;
   } catch (err) {
-    console.error(`[Unsplash Fetch] Error querying for "${phrase}":`, err.message);
+    console.error(`[Pexels Fetch] Error querying for "${phrase}":`, err.message);
     return null;
   }
 }
@@ -421,7 +419,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         base64 = await generateSvgFromGemini(s.title, s.visualDescription);
         geminiCallCount++;
       } else {
-        // "photo" (or default) -> run the Wikimedia -> Unsplash chain
+        // "photo" (or default) -> run the Wikimedia -> Pexels chain
         console.log(`[Slide Visual Route] Slide "${s.title}" is a photo. Searching online...`);
         
         // Step 1: Wikimedia Commons First
@@ -429,9 +427,9 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           base64 = await fetchFromWikimedia(phrase);
         }
 
-        // Step 2: Unsplash API Second
+        // Step 2: Pexels API Second
         if (!base64 && phrase) {
-          base64 = await fetchFromUnsplash(phrase);
+          base64 = await fetchFromPexels(phrase);
         }
       }
 
