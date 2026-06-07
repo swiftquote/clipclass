@@ -1,47 +1,151 @@
 import pptxgen from 'pptxgenjs';
 
 /**
- * Generates an image using Hugging Face Inference API and returns it as a Base64 data URI.
+ * Generates an image using Google Imagen and returns it as a Base64 data URI.
  *
  * @param {string} visualDescription - Slide image description text
  * @returns {Promise<string|null>} Base64 image data URI string, or null on failure
  */
-async function generateImageFromHuggingFace(visualDescription) {
+async function generateImageFromImagen(visualDescription) {
   if (!visualDescription) return null;
 
-  const token = process.env.HF_TOKEN;
-  if (!token) {
-    console.error("[Image Generator] Hugging Face token (HF_TOKEN) is missing.");
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("[Image Generator] Gemini API key (GEMINI_API_KEY) is missing.");
     return null;
   }
 
-  const url = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell";
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
 
   try {
-    console.log(`[Image Generator] Fetching image from Hugging Face for: "${visualDescription.substring(0, 60)}..."`);
+    const finalPrompt = visualDescription + "IMPORTANT: Do NOT include any text, words, letters, numbers, labels, captions, or annotations anywhere in the image under any circumstances. The image must contain only visual elements: shapes, colors, arrows, and illustrations. Zero text of any kind.";
+    console.log(`[Image Generator] Fetching image from Imagen 4.0 for: "${finalPrompt.substring(0, 60)}..."`);
     const response = await fetch(url, {
       signal: controller.signal,
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
+        "x-goog-api-key": apiKey,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ inputs: visualDescription })
+      body: JSON.stringify({
+        instances: [{ prompt: finalPrompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: "16:9",
+          personGeneration: "dont_allow"
+        }
+      })
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Hugging Face Inference API responded with status ${response.status}`);
+      const errText = await response.text();
+      throw new Error(`Imagen API responded with status ${response.status}: ${errText}`);
     }
 
-    const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
-    return `data:image/jpeg;base64,${base64}`;
+    const data = await response.json();
+    const image = data.predictions?.[0];
+    if (!image || !image.bytesBase64Encoded) {
+      throw new Error("No image predictions returned from Imagen API.");
+    }
+
+    return `data:${image.mimeType};base64,${image.bytesBase64Encoded}`;
   } catch (err) {
-    console.error("[Image Generator] Hugging Face image generation failed:", err.message);
+    console.error("[Image Generator] Imagen image generation failed:", err.message);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Generates an SVG diagram using Google Gemini 2.5 Flash and returns it as a Base64 data URI.
+ *
+ * @param {string} title - Slide title
+ * @param {string} visualDescription - Visual diagram description
+ * @returns {Promise<string|null>} Base64 SVG data URI string, or null on failure
+ */
+async function generateSvgFromGemini(title, visualDescription) {
+  if (!title && !visualDescription) return null;
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("[SVG Generator] Gemini API key (GEMINI_API_KEY) is missing.");
+    return null;
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
+
+  try {
+    const systemPrompt = `You are a professional presentation graphic designer and software engineer.
+Your task is to generate a clean, modern, and mathematically/technically accurate SVG diagram.
+Rules:
+1. Output ONLY valid, raw, well-formatted SVG code.
+2. Start with <svg> and end with </svg>.
+3. Do NOT wrap the output in markdown block code formatting (like \`\`\`xml or \`\`\`svg) or any other text. Return ONLY the SVG.
+4. Ensure the SVG has a viewBox="0 0 680 400" and uses a white background.
+5. All text labels must be large and readable (minimum 16px font-size) using a clean sans-serif font-family (e.g. System-UI, Inter, Arial).
+6. Focus on ONE clear visual element only.`;
+
+    const userPrompt = `Generate a clean educational SVG diagram of: ${visualDescription || title || ""}. Focus on ONE clear visual element only. Large readable labels, minimum 16px text, white background, viewBox 680x400.`;
+
+    console.log(`[SVG Generator] Generating SVG using Gemini 2.5 Flash for: "${title}"...`);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `${systemPrompt}\n\n${userPrompt}`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2
+        }
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API responded with status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!contentText) {
+      throw new Error("No SVG content returned from Gemini API.");
+    }
+
+    let cleanedText = contentText.trim();
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```(?:xml|svg)?\n?/i, "").replace(/\n?```$/, "").trim();
+    }
+
+    if (!cleanedText.startsWith("<svg")) {
+      throw new Error("Returned content does not appear to be a valid SVG element.");
+    }
+
+    // Convert raw SVG string to Base64 data URI
+    const base64Data = Buffer.from(cleanedText).toString('base64');
+    return `data:image/svg+xml;base64,${base64Data}`;
+
+  } catch (err) {
+    console.error("[SVG Generator] SVG generation failed:", err.message);
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -80,76 +184,26 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
   const slides = slidesJSON.slides || [];
 
-  // Generate slide visuals sequentially.
+  // Generate all slide visuals (both SVG diagrams and Imagen images) concurrently in parallel.
+  // Since we are using the paid Gemini API tier, rate-limiting delays are not required,
+  // and concurrent execution prevents the client-side request timeout (60s).
+  const visualPromises = [];
   for (const s of slides) {
     if (s.type === 'content') {
-      s.imageBase64 = await generateImageFromHuggingFace(s.visualDescription);
+      if (s.visualMethod === 'svg') {
+        visualPromises.push((async () => {
+          s.imageBase64 = await generateSvgFromGemini(s.title, s.visualDescription);
+        })());
+      } else {
+        visualPromises.push((async () => {
+          s.imageBase64 = await generateImageFromImagen(s.visualDescription);
+        })());
+      }
     }
   }
+  await Promise.all(visualPromises);
 
-  const renderSingleInteractiveSlide = (targetSlide, s, highlightAnswer) => {
-    // Header (38pt, bold, accent color)
-    const titleText = highlightAnswer ? `${s.title || "Check Your Understanding"} (Answer)` : (s.title || "Check Your Understanding");
-    targetSlide.addText(titleText, {
-      x: 0.8,
-      y: 0.5,
-      w: 8.4,
-      h: 0.8,
-      fontSize: 38,
-      bold: true,
-      color: accentHex,
-      fontFace: FONT_FAMILY
-    });
-
-    // Question block (24pt, bold, near-black)
-    targetSlide.addText(s.question || "Discuss the main takeaway.", {
-      x: 0.8,
-      y: 1.3,
-      w: 8.4,
-      h: 1.0,
-      fontSize: 24,
-      bold: true,
-      color: TEXT_COLOR,
-      fontFace: FONT_FAMILY,
-      valign: 'middle'
-    });
-
-    // Options (rendered as neat cards if present)
-    if (s.options && s.options.length > 0) {
-      const rowHeight = 0.6;
-      s.options.slice(0, 4).forEach((opt, idx) => {
-        const isCorrect = highlightAnswer && s.correctAnswer && (opt.startsWith(s.correctAnswer) || opt.includes(s.correctAnswer));
-        const yPos = 2.4 + (idx * (rowHeight + 0.15));
-
-        // Option background card
-        targetSlide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-          x: 0.8,
-          y: yPos,
-          w: 8.4,
-          h: rowHeight,
-          fill: { color: isCorrect ? "F1F5F9" : BG_COLOR },
-          line: { color: isCorrect ? accentHex : "E2E8F0", width: isCorrect ? 2 : 1 }
-        });
-
-        // Option text
-        targetSlide.addText(opt, {
-          x: 1.0,
-          y: yPos,
-          w: 8.0,
-          h: rowHeight,
-          fontSize: 18,
-          bold: !!isCorrect,
-          color: isCorrect ? accentHex : TEXT_COLOR,
-          fontFace: FONT_FAMILY,
-          valign: 'middle'
-        });
-      });
-    }
-  };
-
-  for (const s of slides) {
-    const slide = pptx.addSlide();
-    
+  const renderSingleSlide = (slide, s, highlightAnswer) => {
     // Set global off-white background
     slide.background = { fill: BG_COLOR };
 
@@ -170,7 +224,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           bold: true,
           color: accentHex,
           fontFace: FONT_FAMILY,
-          valign: 'middle'
+          valign: 'middle',
+          fit: 'shrink'
         });
 
         // Subtitle (22pt, near-black text)
@@ -205,7 +260,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           fontSize: 38,
           bold: true,
           color: accentHex,
-          fontFace: FONT_FAMILY
+          fontFace: FONT_FAMILY,
+          fit: 'shrink'
         });
 
         // Objective items (24pt, near-black, bulleted)
@@ -220,7 +276,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             y: 1.6,
             w: 8.4,
             h: 3.2,
-            valign: 'top'
+            valign: 'top',
+            fit: 'shrink'
           });
         }
         break;
@@ -235,14 +292,15 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           fontSize: 38,
           bold: true,
           color: TEXT_COLOR,
-          fontFace: FONT_FAMILY
+          fontFace: FONT_FAMILY,
+          fit: 'shrink'
         });
 
         // Agenda items (22pt, near-black, bulleted)
         if (s.bullets && s.bullets.length > 0) {
           const listItems = s.bullets.map(b => ({
             text: b,
-            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 32 }
+            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, lineSpacing: 32, breakLine: true }
           }));
 
           slide.addText(listItems, {
@@ -257,16 +315,25 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
       case 'content':
         // Assertion Header (a full-sentence claim, 26pt, bold, near-black)
-        slide.addText(s.title || "", {
+        const headerText = s.title || "";
+        let headerFontSize = 26;
+        if (headerText.length > 120) {
+          headerFontSize = 18;
+        } else if (headerText.length > 80) {
+          headerFontSize = 22;
+        }
+
+        slide.addText(headerText, {
           x: 0.6,
           y: 0.3,
           w: 8.8,
-          h: 0.9,
-          fontSize: 26,
+          h: 1.1,
+          fontSize: headerFontSize,
           bold: true,
           color: TEXT_COLOR,
           fontFace: FONT_FAMILY,
-          valign: 'middle'
+          valign: 'middle',
+          fit: 'shrink'
         });
 
         // Split Layout: Bullets on Left (24pt), Visual Evidence Card on Right
@@ -286,14 +353,23 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         }
 
         if (s.imageBase64) {
-          // Render the actual photographic image
+          // 1. Draw a white background placeholder card (fills empty space if contain size has borders)
+          slide.addShape(pptx.shapes.RECTANGLE, {
+            x: 5.1,
+            y: 1.4,
+            w: 4.3,
+            h: 2.7,
+            fill: { color: "FFFFFF" }
+          });
+
+          // 2. Render the actual photographic image using 'contain' sizing
           slide.addImage({
             data: s.imageBase64,
             x: 5.1,
             y: 1.4,
             w: 4.3,
             h: 2.7,
-            sizing: { type: 'cover', w: 4.3, h: 2.7 }
+            sizing: { type: 'contain', w: 4.3, h: 2.7 }
           });
         } else {
           // Right Column: Fallback Native Diagram Card (when image fetch fails)
@@ -422,18 +498,368 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         }
         break;
 
-      case 'interactive':
-        // Render Slide A: The Question slide (highlightAnswer = false)
-        renderSingleInteractiveSlide(slide, s, false);
+      case 'mcq': {
+        // Activity Header (max 25% height, 24pt, normal black text)
+        const titleText = highlightAnswer ? `${s.title || "Multiple Choice"} (Answer)` : (s.title || "Multiple Choice");
+        slide.addText(titleText, {
+          x: 0.8,
+          y: 0.4,
+          w: 11.7,
+          h: 1.2,
+          fontSize: 24,
+          bold: false,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle',
+          fit: 'shrink',
+          wrap: true
+        });
 
-        // Render Slide B: The Answer slide (highlightAnswer = true)
-        const answerSlide = pptx.addSlide();
-        answerSlide.background = { fill: BG_COLOR };
-        if (s.notes) {
-          answerSlide.addNotes(s.notes);
+        if (s.bullets && s.bullets.length > 0) {
+          const rowHeight = 0.7;
+          const spacing = 0.15;
+          s.bullets.slice(0, 4).forEach((opt, idx) => {
+            const isCorrect = highlightAnswer && s.correctAnswer && (
+              opt.trim().startsWith(s.correctAnswer.trim()) ||
+              s.correctAnswer.trim().startsWith(opt.trim().substring(0, 2)) ||
+              opt.trim() === s.correctAnswer.trim()
+            );
+            const yPos = 1.8 + (idx * (rowHeight + spacing));
+
+            // Option background card
+            slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+              x: 0.8,
+              y: yPos,
+              w: 11.7,
+              h: rowHeight,
+              fill: { color: isCorrect ? "F1F5F9" : BG_COLOR },
+              line: { color: isCorrect ? accentHex : "E2E8F0", width: isCorrect ? 2 : 1 }
+            });
+
+            // Option text
+            slide.addText(isCorrect ? `${opt}  ← [ CORRECT ANSWER ]` : opt, {
+              x: 1.1,
+              y: yPos,
+              w: 11.1,
+              h: rowHeight,
+              fontSize: 18,
+              bold: !!isCorrect,
+              color: isCorrect ? accentHex : TEXT_COLOR,
+              fontFace: FONT_FAMILY,
+              valign: 'middle',
+              wrap: true
+            });
+          });
         }
-        renderSingleInteractiveSlide(answerSlide, s, true);
         break;
+      }
+
+      case 'true_false': {
+        const titleText = highlightAnswer ? `${s.title || "True or False"} (Answer)` : (s.title || "True or False");
+        slide.addText(titleText, {
+          x: 0.8,
+          y: 0.4,
+          w: 11.7,
+          h: 1.2,
+          fontSize: 24,
+          bold: false,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle',
+          fit: 'shrink',
+          wrap: true
+        });
+
+        if (s.bullets && s.bullets.length > 0) {
+          // Calculate font size dynamically based on the longest statement + answer label length
+          let maxLen = 0;
+          s.bullets.forEach((b, idx) => {
+            const ans = s.correctAnswers && s.correctAnswers[idx];
+            const labelLength = ans ? ans.length + 8 : 0;
+            const totalLen = b.length + labelLength;
+            if (totalLen > maxLen) {
+              maxLen = totalLen;
+            }
+          });
+
+          let fontSize = 22;
+          if (maxLen > 110) {
+            fontSize = 12;
+          } else if (maxLen > 90) {
+            fontSize = 14;
+          } else if (maxLen > 75) {
+            fontSize = 16;
+          } else if (maxLen > 60) {
+            fontSize = 18;
+          }
+
+          const listItems = [];
+          s.bullets.forEach((b, idx) => {
+            const ans = s.correctAnswers && s.correctAnswers[idx];
+            if (highlightAnswer && ans) {
+              const ansColor = ans.toLowerCase().includes("true") ? accentHex : "C2410C";
+              listItems.push({
+                text: b + "  →  ",
+                options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false }
+              });
+              listItems.push({
+                text: `[ ${ans} ]`,
+                options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: ansColor, bold: true, bullet: false, breakLine: true }
+              });
+            } else {
+              listItems.push({
+                text: b,
+                options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+              });
+            }
+          });
+
+          slide.addText(listItems, {
+            x: 0.8,
+            y: 1.8,
+            w: 11.7,
+            h: 5.0,
+            valign: 'top',
+            fit: 'shrink',
+            wrap: true
+          });
+        }
+        break;
+      }
+
+      case 'fill_blank': {
+        const titleText = highlightAnswer ? `${s.title || "Fill in the Blanks"} (Answer)` : (s.title || "Fill in the Blanks");
+        slide.addText(titleText, {
+          x: 0.8,
+          y: 0.4,
+          w: 11.7,
+          h: 1.2,
+          fontSize: 24,
+          bold: false,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle',
+          fit: 'shrink',
+          wrap: true
+        });
+
+        if (s.bullets && s.bullets.length > 0) {
+          const listItems = [];
+          s.bullets.forEach((b, idx) => {
+            const ans = s.correctAnswers && s.correctAnswers[idx];
+            if (highlightAnswer && ans) {
+              const parts = b.split(/__+/);
+              if (parts.length >= 2) {
+                listItems.push({
+                  text: parts[0],
+                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false }
+                });
+                listItems.push({
+                  text: `[ ${ans} ]`,
+                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: false }
+                });
+                listItems.push({
+                  text: parts.slice(1).join(""),
+                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+                });
+              } else {
+                listItems.push({
+                  text: b + `  [ ${ans} ]`,
+                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+                });
+              }
+            } else {
+              listItems.push({
+                text: b,
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+              });
+            }
+          });
+
+          slide.addText(listItems, {
+            x: 0.8,
+            y: 1.8,
+            w: 11.7,
+            h: 5.0,
+            valign: 'top',
+            fit: 'shrink',
+            wrap: true
+          });
+        }
+        break;
+      }
+
+      case 'matching': {
+        const titleText = highlightAnswer ? `${s.title || "Concept Matching"} (Answer)` : (s.title || "Concept Matching");
+        slide.addText(titleText, {
+          x: 0.8,
+          y: 0.4,
+          w: 11.7,
+          h: 1.2,
+          fontSize: 24,
+          bold: false,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle',
+          fit: 'shrink',
+          wrap: true
+        });
+
+        const leftTerms = [];
+        const rightDefs = [];
+
+        if (s.bullets && s.bullets.length > 0) {
+          s.bullets.forEach(b => {
+            const parts = b.split(/<-->/);
+            if (parts.length >= 2) {
+              leftTerms.push(parts[0].trim());
+              rightDefs.push(parts[1].trim());
+            } else {
+              leftTerms.push(b);
+            }
+          });
+        }
+
+        // Render Left Column
+        if (leftTerms.length > 0) {
+          const leftItems = [];
+          leftTerms.forEach((term, idx) => {
+            const match = s.correctMatches && s.correctMatches[idx];
+            if (highlightAnswer && match) {
+              leftItems.push({
+                text: term + "  →  ",
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false }
+              });
+              leftItems.push({
+                text: `[ ${match} ]`,
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: false, breakLine: true }
+              });
+            } else {
+              leftItems.push({
+                text: term,
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+              });
+            }
+          });
+
+          slide.addText(leftItems, {
+            x: 0.8,
+            y: 1.8,
+            w: 5.5,
+            h: 5.0,
+            valign: 'top',
+            fit: 'shrink',
+            wrap: true
+          });
+        }
+
+        // Render Right Column
+        if (rightDefs.length > 0) {
+          const rightItems = rightDefs.map(def => ({
+            text: def,
+            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, lineSpacing: 32, breakLine: true }
+          }));
+
+          slide.addText(rightItems, {
+            x: 7.0,
+            y: 1.8,
+            w: 5.5,
+            h: 5.0,
+            valign: 'top',
+            fit: 'shrink',
+            wrap: true
+          });
+        }
+        break;
+      }
+
+      case 'odd_one_out': {
+        const titleText = highlightAnswer ? `${s.title || "Odd One Out"} (Answer)` : (s.title || "Odd One Out");
+        slide.addText(titleText, {
+          x: 0.8,
+          y: 0.4,
+          w: 11.7,
+          h: 1.2,
+          fontSize: 24,
+          bold: false,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle',
+          fit: 'shrink',
+          wrap: true
+        });
+
+        if (s.bullets && s.bullets.length > 0) {
+          const listItems = [];
+          s.bullets.forEach(b => {
+            const isCorrect = highlightAnswer && s.correctAnswer && (
+              b.trim().startsWith(s.correctAnswer.trim()) ||
+              s.correctAnswer.trim().startsWith(b.trim().substring(0, 2)) ||
+              b.trim().includes(s.correctAnswer.trim())
+            );
+            if (isCorrect) {
+              listItems.push({
+                text: b + "  ",
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true }
+              });
+              listItems.push({
+                text: "← [ ODD ONE OUT ]",
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: false, breakLine: true }
+              });
+            } else {
+              listItems.push({
+                text: b,
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, breakLine: true }
+              });
+            }
+          });
+
+          slide.addText(listItems, {
+            x: 0.8,
+            y: 1.8,
+            w: 11.7,
+            h: 5.0,
+            valign: 'top',
+            fit: 'shrink',
+            wrap: true
+          });
+        }
+        break;
+      }
+
+      case 'exit_ticket': {
+        slide.addText(s.title || "Exit Ticket", {
+          x: 0.8,
+          y: 0.4,
+          w: 11.7,
+          h: 1.2,
+          fontSize: 24,
+          bold: false,
+          color: TEXT_COLOR,
+          fontFace: FONT_FAMILY,
+          valign: 'middle',
+          fit: 'shrink',
+          wrap: true
+        });
+
+        if (s.bullets && s.bullets.length > 0) {
+          const listItems = s.bullets.map(b => ({
+            text: b,
+            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 32, breakLine: true }
+          }));
+
+          slide.addText(listItems, {
+            x: 0.8,
+            y: 1.8,
+            w: 11.7,
+            h: 5.0,
+            valign: 'top',
+            fit: 'shrink',
+            wrap: true
+          });
+        }
+        break;
+      }
 
       case 'summary':
         // Section Header (38pt, bold, accent color)
@@ -445,7 +871,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           fontSize: 38,
           bold: true,
           color: accentHex,
-          fontFace: FONT_FAMILY
+          fontFace: FONT_FAMILY,
+          fit: 'shrink'
         });
 
         // Summary bullets (24pt, near-black)
@@ -492,6 +919,16 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             valign: 'top'
           });
         }
+    }
+  };
+
+  for (const s of slides) {
+    const slide = pptx.addSlide();
+    renderSingleSlide(slide, s, false);
+
+    if (['mcq', 'true_false', 'fill_blank', 'matching', 'odd_one_out'].includes(s.type)) {
+      const answerSlide = pptx.addSlide();
+      renderSingleSlide(answerSlide, s, true);
     }
   }
 

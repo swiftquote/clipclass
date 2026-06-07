@@ -1,54 +1,7 @@
-// ClipClass AI Synthesis Layer - Interfaces with Groq, with Gemini fallback
+// ClipClass AI Synthesis Layer - Interfaces with Google Gemini API
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
-
-const getGroqApiKey = () => {
-  const key = process.env.GROQ_API_KEY || process.env.ROQ_API_KEY;
-  return (key && key.trim().length > 0) ? key : null;
-};
-
-async function callGroqJSON({ systemPrompt, userPrompt, temperature, logPrefix }) {
-  const apiKey = getGroqApiKey();
-
-  console.log(`[${logPrefix}] Attempting synthesis using Groq model: ${GROQ_MODEL}...`);
-
-  const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      response_format: { type: "json_object" },
-      temperature
-    })
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Groq model ${GROQ_MODEL} responded with status ${response.status}: ${errText}`);
-  }
-
-  const result = await response.json();
-  const contentText = result.choices?.[0]?.message?.content;
-
-  if (!contentText) {
-    throw new Error(`Groq model ${GROQ_MODEL} did not return content text.`);
-  }
-
-  const payload = JSON.parse(contentText.trim());
-  console.log(`[${logPrefix}] Successfully synthesized JSON using Groq model: ${GROQ_MODEL}`);
-  return payload;
-}
 
 async function callGeminiJSON({ systemPrompt, userPrompt, temperature, logPrefix, successLabel }) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -56,7 +9,7 @@ async function callGeminiJSON({ systemPrompt, userPrompt, temperature, logPrefix
     throw new Error("Gemini API key is missing or not configured.");
   }
 
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
   let lastError = null;
 
   for (const modelName of candidateModels) {
@@ -98,7 +51,20 @@ async function callGeminiJSON({ systemPrompt, userPrompt, temperature, logPrefix
         throw new Error(`Model ${modelName} did not return content text.`);
       }
 
-      const payload = JSON.parse(contentText.trim());
+      let cleanedText = contentText.trim();
+      if (cleanedText.startsWith("```")) {
+        cleanedText = cleanedText.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/, "").trim();
+      }
+
+      // Escape raw control characters (newlines, carriage returns, tabs) inside string literals
+      cleanedText = cleanedText.replace(/"([^"\\]|\\.)*"/g, (match) => {
+        return match
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+      });
+
+      const payload = JSON.parse(cleanedText);
       console.log(`[${logPrefix}] Successfully synthesized ${successLabel} using Gemini model: ${modelName}`);
       return payload;
 
@@ -193,20 +159,6 @@ Here is the chronological transcript of the educational video:
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
 
-  if (getGroqApiKey()) {
-    try {
-      return await callGroqJSON({
-        systemPrompt,
-        userPrompt,
-        temperature: 0.3,
-        logPrefix: "AI Layer"
-      });
-    } catch (err) {
-      console.error("Groq API Workbook Generation Error:", err);
-      throw new Error(`AI synthesis failed using Groq. Last error: ${err.message}`);
-    }
-  }
-
   try {
     return await callGeminiJSON({
       systemPrompt,
@@ -267,11 +219,15 @@ You must output a single, valid JSON object following this EXACT structure:
       "type": "agenda",
       "title": "Lesson Roadmap",
       "bullets": [
-        "1. Hook & Warmup",
-        "2. Key Concepts & Factual Lessons",
-        "3. Real-world Examples",
-        "4. Interactive Challenge",
-        "5. Consolidation & Takeaways"
+        "1. Introduction",
+        "2. [First Content Slide Topic Name]",
+        "3. [Second Content Slide Topic Name]",
+        "4. [Third Content Slide Topic Name]",
+        "5. [Fourth Content Slide Topic Name]",
+        "6. [Activity 1 Name] (e.g. Multiple Choice Review)",
+        "7. [Activity 2 Name] (e.g. True or False Challenge)",
+        "8. Exit Ticket (Final Assessment)",
+        "9. Summary & Takeaways"
       ]
     },
     {
@@ -286,15 +242,77 @@ You must output a single, valid JSON object following this EXACT structure:
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
       "imageSearchPhrase": "A specific 3-6 word descriptive phrase in English only optimized for Wikimedia Commons. Specify exact diagrams/concepts (e.g. 'sodium chloride ionic bond electron transfer diagram' instead of 'atom diagram'). Avoid covers, portraits, multi-panel charts, generic terms, the term 'illustration', and the slide title itself. For abstract concepts, use a concrete scene/object photograph (e.g. 'satellite television broadcast tower photograph').",
       "visualType": "Specify either 'diagram' (if the slide visual is a labeled diagram, flowchart, step-by-step process, chart, or mathematical illustration) or 'photo' (if the visual requires a real photograph, painting, or map that exists in the world).",
+      "visualMethod": "Specify either 'svg' (if the content is logic gates, circuits, truth tables, calculations, step-by-step processes requiring labelled stages, or maths/CS content where accuracy is critical) or 'generate' (if the content is biology, cells, historical events, geography, maps, or rich illustrations).",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
-      "type": "interactive",
-      "title": "Discussion Prompt or Question",
-      "question": "An active review question matching the slide content.",
-      "options": ["A) Choice A", "B) Choice B", "C) Choice C", "D) Choice D"],
-      "correctAnswer": "A) Choice A",
-      "notes": "Teacher notes directing the check for understanding."
+      "type": "mcq",
+      "title": "A clear, question-based title for the multiple choice recall task",
+      "bullets": [
+        "A) Option A",
+        "B) Option B",
+        "C) Option C",
+        "D) Option D"
+      ],
+      "correctAnswer": "A) Option A",
+      "notes": "Correct Answer: [Option letter] plus brief explanation of the correct choice."
+    },
+    {
+      "type": "true_false",
+      "title": "A clear title for the True/False statement review task",
+      "bullets": [
+        "1. First statement (can be true or false)",
+        "2. Second statement (can be true or false)",
+        "3. Third statement (can be true or false)",
+        "4. Fourth statement (can be true or false)"
+      ],
+      "correctAnswers": ["True", "False", "True", "False"],
+      "notes": "Correct Answers:\n1. True\n2. False\n..."
+    },
+    {
+      "type": "fill_blank",
+      "title": "A clear title for the Fill in the Blanks definition task",
+      "bullets": [
+        "1. A concise sentence with one crucial _____ removed (max 15 words).",
+        "2. A second concise sentence with a _____ blank (max 15 words).",
+        "3. A third concise sentence with a _____ blank (max 15 words)."
+      ],
+      "correctAnswers": ["word1", "word2", "word3"],
+      "notes": "Correct Answers:\n1. [Word]\n2. [Word]\n3. [Word]"
+    },
+    {
+      "type": "matching",
+      "title": "A clear title for the Concept Matching vocabulary task",
+      "bullets": [
+        "1. Term A  <-->  A. Shuffled definition 1",
+        "2. Term B  <-->  B. Shuffled definition 2",
+        "3. Term C  <-->  C. Shuffled definition 3",
+        "4. Term D  <-->  D. Shuffled definition 4"
+      ],
+      "correctMatches": ["B", "A", "D", "C"],
+      "notes": "Correct Matches:\n1 - B (Term A - Definition A)\n2 - A (Term B - Definition B)..."
+    },
+    {
+      "type": "odd_one_out",
+      "title": "A clear title for the Odd One Out categorization task",
+      "bullets": [
+        "A) Term 1",
+        "B) Term 2",
+        "C) Term 3 (Odd one out)",
+        "D) Term 4"
+      ],
+      "correctAnswer": "C) Term 3",
+      "notes": "Correct Answer: C) Term 3\nExplanation: Why it does not belong in this group."
+    },
+    {
+      "type": "exit_ticket",
+      "title": "A clear title for the Exit Ticket review task",
+      "bullets": [
+        "1. Short open question A",
+        "2. Short open question B",
+        "3. Short open question C (optional)"
+      ],
+      "notes": "Answers/Rubric:\n1. [Expected student response]\n2. [Expected student response]"
     },
     {
       "type": "summary",
@@ -310,12 +328,26 @@ You must output a single, valid JSON object following this EXACT structure:
 }
 
 CRITICAL RULES FOR CONTENT SYNTHESIS:
-1. Logical Arc: Title -> Objectives -> Agenda -> 4 to 6 Content Slides -> 1 Interactive Check Slide -> Summary Slide.
+1. Logical Arc: Title -> Objectives -> Agenda -> 4 to 6 Content Slides -> 3 to 5 unique Activity Slides -> Summary Slide.
 2. Cognitive Load: Max 1 core idea per slide. Bullet points must be short keywords/phrases (no full paragraphs). Cap bullet points at exactly 4 per slide.
 3. Assertion-Evidence Style: For every "content" slide, the header MUST be a full-sentence assertion claim (not a vague topic label like 'Introduction' or 'Starch').
 4. Delivery Support: Put the teacher's talking points, discussion prompts, and timing cues strictly in the 'notes' field (which will go to the speaker notes). Keep the slides clean.
 5. Alignment: Every content slide must align directly back to the stated learning objectives.
-6. Image Search Phrase Guidelines:
+6. Roadmap Slide Formatting:
+   - The roadmap/agenda slide must list exactly the items corresponding to the actual slides that follow, in order.
+   - Do not invent names of sections or activities that do not correspond to actual slides.
+   - Include: One item per content slide (using its actual topic), one item for each activity slide (using its actual activity type name), and one item for the summary.
+   - The roadmap items must be formatted as a numbered list (e.g. "1. Introduction", "2. Photosynthesis Process", "3. Multiple Choice Review", "4. Exit Ticket", "5. Summary").
+7. Mixed Activity Section:
+   - Select between 3 and 5 activity slides to put in the activity section.
+   - Intelligently choose the activity types from the available list ("mcq", "true_false", "fill_blank", "matching", "odd_one_out", "exit_ticket") that best fit the lesson content.
+   - Must include at least one "mcq" activity slide.
+   - Must end with an "exit_ticket" activity slide.
+   - Never repeat the same activity type twice in a deck (each activity slide must be of a unique type).
+   - For the "fill_blank" activity, generate a minimum of 3 and a maximum of 4 fill-in-the-blank sentences. Each sentence must be concise, with a maximum of 15 words.
+   - For all activity slides (except exit_ticket), you MUST populate the corresponding correct answer field ("correctAnswer", "correctAnswers", or "correctMatches") exactly as defined in the slide object examples.
+   - Ensure the correct answers/solutions are always provided in the "notes" field for every activity slide.
+8. Image Search Phrase Guidelines:
    For each content slide, generate an "imageSearchPhrase" to find a relevant educational image on Wikimedia Commons:
    - Write it as a specific 3-6 word descriptive phrase, NOT comma-separated tags.
    - Always generate phrases in English only. Never include foreign-language terms even if the topic originates from another language.
@@ -334,7 +366,11 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
    For each content slide, output a "visualType" field:
    - "diagram" — the visual is a labeled diagram, flowchart, step-by-step process, chart, or mathematical illustration (e.g. binary conversion steps, atom structure, circuit diagram, flowchart, Pythagoras triangle, pros/cons comparison, timeline).
    - "photo" — the visual requires a real photograph, painting, or map that exists in the world (e.g. historical events, real people, places, maps, scientific photographs, artworks).
-8. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
+8. Visual Method Selection Guidelines:
+   For each content slide, output a "visualMethod" field:
+   - "svg" — when the slide contains logic gates, circuits, truth tables, calculations, step-by-step processes requiring labelled stages, or maths/CS content where accuracy is critical.
+   - "generate" — when the slide contains biology, cells, historical events, geography, maps, or rich illustrations where a visual style adds more value than technical layout accuracy.
+9. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
 
   const userPrompt = `Generate a structured slide deck for:
 - Student Age Group: Ages ${ageGroup}
@@ -344,20 +380,6 @@ Here is the chronological transcript of the educational video:
 === START TRANSCRIPT ===
 ${formattedTranscript}
 === END TRANSCRIPT ===`;
-
-  if (getGroqApiKey()) {
-    try {
-      return await callGroqJSON({
-        systemPrompt,
-        userPrompt,
-        temperature: 0.35,
-        logPrefix: "AI Slide Layer"
-      });
-    } catch (err) {
-      console.error("Groq API PowerPoint Generation Error:", err);
-      throw new Error(`AI slide synthesis failed using Groq. Last error: ${err.message}`);
-    }
-  }
 
   try {
     return await callGeminiJSON({
