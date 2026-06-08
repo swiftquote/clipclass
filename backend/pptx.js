@@ -20,8 +20,9 @@ async function generateImageFromImagen(visualDescription) {
   const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
 
   try {
-    const finalPrompt = visualDescription + "IMPORTANT: Do NOT include any text, words, letters, numbers, labels, captions, or annotations anywhere in the image under any circumstances. The image must contain only visual elements: shapes, colors, arrows, and illustrations. Zero text of any kind.";
-    console.log(`[Image Generator] Fetching image from Imagen 4.0 for: "${finalPrompt.substring(0, 60)}..."`);
+    const cleanDescription = visualDescription.trim().replace(/[.,;:!?]+$/, "");
+    const finalPrompt = `A clean, professional presentation slide illustration of: ${cleanDescription}. Clear visual metaphor, high quality. Strictly no text, no labels, no words, no characters, no typography, no letters, no numbers. Pure visual design without annotations.`;
+    console.log(`[Image Generator] Fetching image from Imagen 4.0 for: "${finalPrompt.substring(0, 80)}..."`);
     const response = await fetch(url, {
       signal: controller.signal,
       method: "POST",
