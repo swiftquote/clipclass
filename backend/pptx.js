@@ -191,6 +191,13 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   const visualPromises = [];
   for (const s of slides) {
     if (s.type === 'content') {
+      // Force visualMethod to 'svg' if the visualDescription indicates a diagram, chart, or labelled illustration.
+      // This prevents Imagen from trying to render hallucinated text labels.
+      const desc = (s.visualDescription || "").toLowerCase();
+      if (desc.includes("diagram") || desc.includes("chart") || desc.includes("labelled") || desc.includes("labeled") || desc.includes("illustration of")) {
+        s.visualMethod = 'svg';
+      }
+
       if (s.visualMethod === 'svg') {
         visualPromises.push((async () => {
           s.imageBase64 = await generateSvgFromGemini(s.title, s.visualDescription);
@@ -373,7 +380,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             sizing: { type: 'contain', w: 4.3, h: 2.7 }
           });
         } else {
-          // Right Column: Fallback Native Diagram Card (when image fetch fails)
+          // Right Column: Fallback Native Concept Card (when image fetch fails)
           // 1. Draw card background rounded rectangle
           slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
             x: 5.1,
@@ -384,78 +391,21 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             line: { color: accentHex, width: 2 }
           });
 
-          // 2. Draw subtle grid backdrop (6 dashed lines in Slate-200)
-          for (let i = 1; i <= 3; i++) {
-            // Vertical grid line
-            slide.addShape(pptx.shapes.LINE, {
-              x: 5.1 + (i * 4.3) / 4,
-              y: 1.4,
-              w: 0,
-              h: 3.6,
-              line: { color: "E2E8F0", width: 1, dashType: 'dash' }
-            });
-            // Horizontal grid line
-            slide.addShape(pptx.shapes.LINE, {
-              x: 5.1,
-              y: 1.4 + (i * 3.6) / 4,
-              w: 4.3,
-              h: 0,
-              line: { color: "E2E8F0", width: 1, dashType: 'dash' }
-            });
-          }
-
-          // 3. Draw connecting lines between nodes
-          slide.addShape(pptx.shapes.LINE, {
-            x: 6.1,
-            y: 2.35,
-            w: 0.8,
-            h: 0,
-            line: { color: accentHex, width: 3 }
-          });
-          slide.addShape(pptx.shapes.LINE, {
-            x: 7.6,
-            y: 2.35,
-            w: 0.8,
-            h: 0,
-            line: { color: accentHex, width: 3 }
-          });
-
-          // 4. Draw Node 1 ("In")
-          slide.addShape(pptx.shapes.OVAL, {
+          // 2. Draw "KEY CONCEPT" header pill
+          slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
             x: 5.4,
-            y: 2.0,
-            w: 0.7,
-            h: 0.7,
-            fill: { color: "FFFFFF" },
-            line: { color: accentHex, width: 2 }
+            y: 1.7,
+            w: 1.5,
+            h: 0.35,
+            fill: { color: accentHex },
+            line: { color: accentHex, width: 1 }
           });
-          slide.addText("In", {
+          slide.addText("KEY CONCEPT", {
             x: 5.4,
-            y: 2.0,
-            w: 0.7,
-            h: 0.7,
-            fontSize: 12,
-            bold: true,
-            color: accentHex,
-            fontFace: FONT_FAMILY,
-            align: 'center',
-            valign: 'middle'
-          });
-
-          // 5. Draw Node 2 ("Process")
-          slide.addShape(pptx.shapes.OVAL, {
-            x: 6.9,
-            y: 2.0,
-            w: 0.7,
-            h: 0.7,
-            fill: { color: accentHex }
-          });
-          slide.addText("Process", {
-            x: 6.7,
-            y: 2.0,
-            w: 1.1,
-            h: 0.7,
-            fontSize: 9,
+            y: 1.7,
+            w: 1.5,
+            h: 0.35,
+            fontSize: 10,
             bold: true,
             color: "FFFFFF",
             fontFace: FONT_FAMILY,
@@ -463,38 +413,19 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             valign: 'middle'
           });
 
-          // 6. Draw Node 3 ("✓")
-          slide.addShape(pptx.shapes.OVAL, {
-            x: 8.4,
-            y: 2.0,
-            w: 0.7,
-            h: 0.7,
-            fill: { color: "FFFFFF" },
-            line: { color: accentHex, width: 2 }
-          });
-          slide.addText("✓", {
-            x: 8.4,
-            y: 2.0,
-            w: 0.7,
-            h: 0.7,
-            fontSize: 16,
-            bold: true,
-            color: accentHex,
+          // 3. Render the visual description or title as a clean educational quote
+          const fallbackText = s.visualDescription || s.title || "Visual representation not available.";
+          slide.addText(fallbackText, {
+            x: 5.4,
+            y: 2.2,
+            w: 3.7,
+            h: 2.4,
+            fontSize: 15,
+            italic: true,
+            color: TEXT_COLOR,
             fontFace: FONT_FAMILY,
-            align: 'center',
-            valign: 'middle'
-          });
-
-          // 7. Place Title / Central Concept below nodes
-          slide.addText([
-            { text: (s.title || "Concept Flow"), options: { bold: true, fontSize: 12, color: TEXT_COLOR, fontFace: FONT_FAMILY } }
-          ], {
-            x: 5.3,
-            y: 2.9,
-            w: 3.9,
-            h: 1.9,
-            align: 'center',
-            valign: 'top'
+            valign: 'top',
+            wrap: true
           });
         }
         break;
@@ -583,7 +514,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             }
           });
 
-          let fontSize = 22;
+          let fontSize = 20;
           if (maxLen > 110) {
             fontSize = 12;
           } else if (maxLen > 90) {
@@ -594,35 +525,39 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             fontSize = 18;
           }
 
-          const listItems = [];
+          const startY = 1.8;
+          const rowHeight = 0.9;
+          const spacing = 0.15;
           s.bullets.forEach((b, idx) => {
             const ans = s.correctAnswers && s.correctAnswers[idx];
+            const yPos = startY + (idx * (rowHeight + spacing));
+
             if (highlightAnswer && ans) {
               const ansColor = ans.toLowerCase().includes("true") ? accentHex : "C2410C";
-              listItems.push({
-                text: b + "  →  ",
-                options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false }
-              });
-              listItems.push({
-                text: `[ ${ans} ]`,
-                options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: ansColor, bold: true, bullet: false, breakLine: true }
+              slide.addText([
+                { text: b + "  →  ", options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: TEXT_COLOR } },
+                { text: `[ ${ans} ]`, options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: ansColor, bold: true } }
+              ], {
+                x: 0.8,
+                y: yPos,
+                w: 11.7,
+                h: rowHeight,
+                valign: 'middle',
+                wrap: true
               });
             } else {
-              listItems.push({
-                text: b,
-                options: { fontSize: fontSize, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+              slide.addText(b, {
+                x: 0.8,
+                y: yPos,
+                w: 11.7,
+                h: rowHeight,
+                fontSize: fontSize,
+                fontFace: FONT_FAMILY,
+                color: TEXT_COLOR,
+                valign: 'middle',
+                wrap: true
               });
             }
-          });
-
-          slide.addText(listItems, {
-            x: 0.8,
-            y: 1.8,
-            w: 11.7,
-            h: 5.0,
-            valign: 'top',
-            fit: 'shrink',
-            wrap: true
           });
         }
         break;
@@ -645,46 +580,54 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         });
 
         if (s.bullets && s.bullets.length > 0) {
-          const listItems = [];
+          const startY = 1.8;
+          const rowHeight = 0.9;
+          const spacing = 0.15;
           s.bullets.forEach((b, idx) => {
             const ans = s.correctAnswers && s.correctAnswers[idx];
+            const yPos = startY + (idx * (rowHeight + spacing));
+
             if (highlightAnswer && ans) {
               const parts = b.split(/__+/);
               if (parts.length >= 2) {
-                listItems.push({
-                  text: parts[0],
-                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false }
-                });
-                listItems.push({
-                  text: `[ ${ans} ]`,
-                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: false }
-                });
-                listItems.push({
-                  text: parts.slice(1).join(""),
-                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+                slide.addText([
+                  { text: parts[0], options: { fontSize: 20, fontFace: FONT_FAMILY, color: TEXT_COLOR } },
+                  { text: `[ ${ans} ]`, options: { fontSize: 20, fontFace: FONT_FAMILY, color: accentHex, bold: true } },
+                  { text: parts.slice(1).join(""), options: { fontSize: 20, fontFace: FONT_FAMILY, color: TEXT_COLOR } }
+                ], {
+                  x: 0.8,
+                  y: yPos,
+                  w: 11.7,
+                  h: rowHeight,
+                  valign: 'middle',
+                  wrap: true
                 });
               } else {
-                listItems.push({
-                  text: b + `  [ ${ans} ]`,
-                  options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+                slide.addText([
+                  { text: b + "  ", options: { fontSize: 20, fontFace: FONT_FAMILY, color: TEXT_COLOR } },
+                  { text: `[ ${ans} ]`, options: { fontSize: 20, fontFace: FONT_FAMILY, color: accentHex, bold: true } }
+                ], {
+                  x: 0.8,
+                  y: yPos,
+                  w: 11.7,
+                  h: rowHeight,
+                  valign: 'middle',
+                  wrap: true
                 });
               }
             } else {
-              listItems.push({
-                text: b,
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+              slide.addText(b, {
+                x: 0.8,
+                y: yPos,
+                w: 11.7,
+                h: rowHeight,
+                fontSize: 20,
+                fontFace: FONT_FAMILY,
+                color: TEXT_COLOR,
+                valign: 'middle',
+                wrap: true
               });
             }
-          });
-
-          slide.addText(listItems, {
-            x: 0.8,
-            y: 1.8,
-            w: 11.7,
-            h: 5.0,
-            valign: 'top',
-            fit: 'shrink',
-            wrap: true
           });
         }
         break;
@@ -721,54 +664,59 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           });
         }
 
+        const startY = 1.8;
+        const rowHeight = 0.9;
+        const spacing = 0.15;
+
         // Render Left Column
         if (leftTerms.length > 0) {
-          const leftItems = [];
           leftTerms.forEach((term, idx) => {
             const match = s.correctMatches && s.correctMatches[idx];
+            const yPos = startY + (idx * (rowHeight + spacing));
+
             if (highlightAnswer && match) {
-              leftItems.push({
-                text: term + "  →  ",
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false }
-              });
-              leftItems.push({
-                text: `[ ${match} ]`,
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: false, breakLine: true }
+              slide.addText([
+                { text: term + "  →  ", options: { fontSize: 20, fontFace: FONT_FAMILY, color: TEXT_COLOR } },
+                { text: `[ ${match} ]`, options: { fontSize: 20, fontFace: FONT_FAMILY, color: accentHex, bold: true } }
+              ], {
+                x: 0.8,
+                y: yPos,
+                w: 5.5,
+                h: rowHeight,
+                valign: 'middle',
+                wrap: true
               });
             } else {
-              leftItems.push({
-                text: term,
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, breakLine: true }
+              slide.addText(term, {
+                x: 0.8,
+                y: yPos,
+                w: 5.5,
+                h: rowHeight,
+                fontSize: 20,
+                fontFace: FONT_FAMILY,
+                color: TEXT_COLOR,
+                valign: 'middle',
+                wrap: true
               });
             }
-          });
-
-          slide.addText(leftItems, {
-            x: 0.8,
-            y: 1.8,
-            w: 5.5,
-            h: 5.0,
-            valign: 'top',
-            fit: 'shrink',
-            wrap: true
           });
         }
 
         // Render Right Column
         if (rightDefs.length > 0) {
-          const rightItems = rightDefs.map(def => ({
-            text: def,
-            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: false, lineSpacing: 32, breakLine: true }
-          }));
-
-          slide.addText(rightItems, {
-            x: 7.0,
-            y: 1.8,
-            w: 5.5,
-            h: 5.0,
-            valign: 'top',
-            fit: 'shrink',
-            wrap: true
+          rightDefs.forEach((def, idx) => {
+            const yPos = startY + (idx * (rowHeight + spacing));
+            slide.addText(def, {
+              x: 7.0,
+              y: yPos,
+              w: 5.5,
+              h: rowHeight,
+              fontSize: 20,
+              fontFace: FONT_FAMILY,
+              color: TEXT_COLOR,
+              valign: 'middle',
+              wrap: true
+            });
           });
         }
         break;
@@ -791,38 +739,43 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         });
 
         if (s.bullets && s.bullets.length > 0) {
-          const listItems = [];
-          s.bullets.forEach(b => {
+          const startY = 1.8;
+          const rowHeight = 0.9;
+          const spacing = 0.15;
+          s.bullets.forEach((b, idx) => {
+            const yPos = startY + (idx * (rowHeight + spacing));
             const isCorrect = highlightAnswer && s.correctAnswer && (
               b.trim().startsWith(s.correctAnswer.trim()) ||
               s.correctAnswer.trim().startsWith(b.trim().substring(0, 2)) ||
               b.trim().includes(s.correctAnswer.trim())
             );
+
             if (isCorrect) {
-              listItems.push({
-                text: b + "  ",
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true }
-              });
-              listItems.push({
-                text: "← [ ODD ONE OUT ]",
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: false, breakLine: true }
+              slide.addText([
+                { text: b + "  ", options: { fontSize: 20, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true } },
+                { text: "← [ ODD ONE OUT ]", options: { fontSize: 20, fontFace: FONT_FAMILY, color: accentHex, bold: true } }
+              ], {
+                x: 0.8,
+                y: yPos,
+                w: 11.7,
+                h: rowHeight,
+                valign: 'middle',
+                wrap: true
               });
             } else {
-              listItems.push({
-                text: b,
-                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, breakLine: true }
+              slide.addText(b, {
+                x: 0.8,
+                y: yPos,
+                w: 11.7,
+                h: rowHeight,
+                fontSize: 20,
+                fontFace: FONT_FAMILY,
+                color: TEXT_COLOR,
+                bullet: true,
+                valign: 'middle',
+                wrap: true
               });
             }
-          });
-
-          slide.addText(listItems, {
-            x: 0.8,
-            y: 1.8,
-            w: 11.7,
-            h: 5.0,
-            valign: 'top',
-            fit: 'shrink',
-            wrap: true
           });
         }
         break;
@@ -844,19 +797,23 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         });
 
         if (s.bullets && s.bullets.length > 0) {
-          const listItems = s.bullets.map(b => ({
-            text: b,
-            options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 32, breakLine: true }
-          }));
-
-          slide.addText(listItems, {
-            x: 0.8,
-            y: 1.8,
-            w: 11.7,
-            h: 5.0,
-            valign: 'top',
-            fit: 'shrink',
-            wrap: true
+          const startY = 1.8;
+          const rowHeight = 0.9;
+          const spacing = 0.15;
+          s.bullets.forEach((b, idx) => {
+            const yPos = startY + (idx * (rowHeight + spacing));
+            slide.addText(b, {
+              x: 0.8,
+              y: yPos,
+              w: 11.7,
+              h: rowHeight,
+              fontSize: 20,
+              fontFace: FONT_FAMILY,
+              color: TEXT_COLOR,
+              bullet: true,
+              valign: 'middle',
+              wrap: true
+            });
           });
         }
         break;
