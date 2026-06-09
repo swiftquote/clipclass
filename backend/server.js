@@ -66,6 +66,28 @@ try {
   console.warn("➡️  Activating Resilient In-Memory Local Database Fallback for local evaluation.");
 }
 
+/**
+ * Resiliently parses a Firestore timestamp or date format into milliseconds.
+ * Handles Timestamps, Date instances, numbers, plain objects, strings, and null.
+ */
+function parseTimestamp(val) {
+  if (!val) return Date.now();
+  if (typeof val.toDate === 'function') {
+    return val.toDate().getTime();
+  }
+  if (val instanceof Date) {
+    return val.getTime();
+  }
+  if (typeof val === 'number') {
+    return val;
+  }
+  if (val._seconds !== undefined) {
+    return val._seconds * 1000;
+  }
+  const parsed = new Date(val).getTime();
+  return isNaN(parsed) ? Date.now() : parsed;
+}
+
 // ==========================================
 // RESILIENT IN-MEMORY LOCAL DATABASE FALLBACK
 // ==========================================
@@ -361,7 +383,7 @@ app.get('/api/user-status', authenticateUser, async (req, res) => {
       const userData = userDoc.data();
       
       // Weekly Quota Reset Check
-      let lastResetTime = userData.lastReset ? userData.lastReset.toDate().getTime() : Date.now();
+      let lastResetTime = parseTimestamp(userData.lastReset);
       const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
       let usage = userData.usageCount || 0;
 
@@ -811,7 +833,7 @@ app.post('/api/generate-kit', authenticateUser, async (req, res) => {
       translationUsageCount = userData.translationUsageCount || 0;
 
       // Reset week interval in Firestore if expired
-      let lastResetTime = userData.lastReset ? userData.lastReset.toDate().getTime() : Date.now();
+      let lastResetTime = parseTimestamp(userData.lastReset);
       const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
       if (Date.now() - lastResetTime > oneWeekMs) {
         usageCount = 0;
@@ -1038,7 +1060,7 @@ app.post('/api/generate-blooket', authenticateUser, async (req, res) => {
       }
 
       plan = userData.plan || "free";
-      lastBlooketReset = userData.lastBlooketReset ? userData.lastBlooketReset.toDate().getTime() : null;
+      lastBlooketReset = userData.lastBlooketReset ? parseTimestamp(userData.lastBlooketReset) : null;
     } else {
       localUserDoc = getMockUserRecord(uid, email);
       plan = localUserDoc.plan;
@@ -1192,7 +1214,7 @@ app.post('/api/generate-powerpoint', authenticateUser, async (req, res) => {
       usageCount = userData.usageCount || 0;
 
       // Reset week interval in Firestore if expired
-      let lastResetTime = userData.lastReset ? userData.lastReset.toDate().getTime() : Date.now();
+      let lastResetTime = parseTimestamp(userData.lastReset);
       const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
       if (Date.now() - lastResetTime > oneWeekMs) {
         usageCount = 0;
