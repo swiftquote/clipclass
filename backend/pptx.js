@@ -108,24 +108,31 @@ Rules:
   const userPrompt = `Generate a clean educational SVG diagram of: ${visualDescription || title || ""}. Focus on ONE clear visual element only. Large readable labels, minimum 16px text, white background, viewBox 680x400.`;
 
   const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
-  const maxRetries = 2;
 
   for (const model of models) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // For the premium/slow model, only try once to save time budget.
+    // For the fallback model, we can try up to 2 times.
+    const maxAttempts = (model === "gemini-2.5-flash") ? 1 : 2;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       // Respect the global generation deadline
       const remainingBudget = deadline - Date.now();
       if (remainingBudget < 4000) {
         console.warn(`[SVG Generator] Skipping ${model} attempt ${attempt} — deadline nearly reached.`);
         return null;
       }
-      const callTimeout = Math.min(15000, remainingBudget - 1000);
+
+      // Enforce a shorter timeout for the primary model if we have a fallback available
+      const callTimeout = (model === "gemini-2.5-flash")
+        ? Math.min(10000, remainingBudget - 2000) // 10s timeout for gemini-2.5-flash
+        : Math.min(15000, remainingBudget - 1000);
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), callTimeout);
 
       try {
-        console.log(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxRetries}] Generating SVG for: "${title}"...`);
+        console.log(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxAttempts}] Generating SVG for: "${title}"...`);
         const response = await fetch(url, {
           signal: controller.signal,
           method: "POST",
@@ -188,9 +195,16 @@ Rules:
 
       } catch (err) {
         clearTimeout(timeoutId);
-        console.warn(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxRetries}] failed: ${err.message}`);
+        console.warn(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxAttempts}] failed: ${err.message}`);
         
-        if (attempt < maxRetries) {
+        // If the primary model fails (timeout or 503), do not retry it;
+        // switch immediately to the fallback model to preserve time budget.
+        if (model === "gemini-2.5-flash") {
+          console.log(`[SVG Generator] Primary model failed. Switching immediately to fallback model.`);
+          break;
+        }
+
+        if (attempt < maxAttempts) {
           const delay = attempt * 1000 + Math.random() * 500; // Staggered retry delay (1s - 1.5s)
           await new Promise(resolve => setTimeout(resolve, delay));
         }
