@@ -6,7 +6,7 @@ import pptxgen from 'pptxgenjs';
  * @param {string} visualDescription - Slide image description text
  * @returns {Promise<string|null>} Base64 image data URI string, or null on failure
  */
-async function generateImageFromImagen(visualDescription) {
+async function generateImageFromImagen(visualDescription, deadline = Infinity) {
   if (!visualDescription) return null;
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -16,50 +16,67 @@ async function generateImageFromImagen(visualDescription) {
   }
 
   const url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict";
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
+  const cleanDescription = visualDescription.trim().replace(/[.,;:!?]+$/, "");
+  const finalPrompt = `A clean, professional presentation slide illustration of: ${cleanDescription}. Clear visual metaphor, high quality. Strictly no text, no labels, no words, no characters, no typography, no letters, no numbers. Pure visual design without annotations.`;
 
-  try {
-    const cleanDescription = visualDescription.trim().replace(/[.,;:!?]+$/, "");
-    const finalPrompt = `A clean, professional presentation slide illustration of: ${cleanDescription}. Clear visual metaphor, high quality. Strictly no text, no labels, no words, no characters, no typography, no letters, no numbers. Pure visual design without annotations.`;
-    console.log(`[Image Generator] Fetching image from Imagen 4.0 for: "${finalPrompt.substring(0, 80)}..."`);
-    const response = await fetch(url, {
-      signal: controller.signal,
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        instances: [{ prompt: finalPrompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "16:9",
-          personGeneration: "dont_allow"
-        }
-      })
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Imagen API responded with status ${response.status}: ${errText}`);
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Respect the global generation deadline: never start a call we can't finish.
+    const remainingBudget = deadline - Date.now();
+    if (remainingBudget < 4000) {
+      console.warn(`[Image Generator] Skipping attempt ${attempt} — generation deadline nearly reached (${Math.round(remainingBudget / 1000)}s left).`);
+      return null;
     }
+    const callTimeout = Math.min(15000, remainingBudget - 1000);
 
-    const data = await response.json();
-    const image = data.predictions?.[0];
-    if (!image || !image.bytesBase64Encoded) {
-      throw new Error("No image predictions returned from Imagen API.");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), callTimeout);
+
+    try {
+      console.log(`[Image Generator] [Attempt ${attempt}/${maxRetries}] Fetching image from Imagen 4.0 for: "${finalPrompt.substring(0, 80)}..."`);
+      const response = await fetch(url, {
+        signal: controller.signal,
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          instances: [{ prompt: finalPrompt }],
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: "16:9",
+            personGeneration: "dont_allow"
+          }
+        })
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Imagen API responded with status ${response.status}: ${errText}`);
+      }
+
+      const data = await response.json();
+      const image = data.predictions?.[0];
+      if (!image || !image.bytesBase64Encoded) {
+        throw new Error("No image predictions returned from Imagen API.");
+      }
+
+      return `data:${image.mimeType};base64,${image.bytesBase64Encoded}`;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn(`[Image Generator] [Attempt ${attempt}/${maxRetries}] failed: ${err.message}`);
+      if (attempt < maxRetries) {
+        const delay = attempt * 1000 + Math.random() * 500; // Staggered retry delay (1s - 1.5s)
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
-
-    return `data:${image.mimeType};base64,${image.bytesBase64Encoded}`;
-  } catch (err) {
-    console.error("[Image Generator] Imagen image generation failed:", err.message);
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  console.error(`[Image Generator] All attempts failed to generate image for: "${visualDescription}"`);
+  return null;
 }
 
 /**
@@ -69,7 +86,7 @@ async function generateImageFromImagen(visualDescription) {
  * @param {string} visualDescription - Visual diagram description
  * @returns {Promise<string|null>} Base64 SVG data URI string, or null on failure
  */
-async function generateSvgFromGemini(title, visualDescription) {
+async function generateSvgFromGemini(title, visualDescription, deadline = Infinity) {
   if (!title && !visualDescription) return null;
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -78,12 +95,7 @@ async function generateSvgFromGemini(title, visualDescription) {
     return null;
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
-
-  try {
-    const systemPrompt = `You are a professional presentation graphic designer and software engineer.
+  const systemPrompt = `You are a professional presentation graphic designer and software engineer.
 Your task is to generate a clean, modern, and mathematically/technically accurate SVG diagram.
 Rules:
 1. Output ONLY valid, raw, well-formatted SVG code.
@@ -93,64 +105,101 @@ Rules:
 5. All text labels must be large and readable (minimum 16px font-size) using a clean sans-serif font-family (e.g. System-UI, Inter, Arial).
 6. Focus on ONE clear visual element only.`;
 
-    const userPrompt = `Generate a clean educational SVG diagram of: ${visualDescription || title || ""}. Focus on ONE clear visual element only. Large readable labels, minimum 16px text, white background, viewBox 680x400.`;
+  const userPrompt = `Generate a clean educational SVG diagram of: ${visualDescription || title || ""}. Focus on ONE clear visual element only. Large readable labels, minimum 16px text, white background, viewBox 680x400.`;
 
-    console.log(`[SVG Generator] Generating SVG using Gemini 2.5 Flash for: "${title}"...`);
+  const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+  const maxRetries = 2;
 
-    const response = await fetch(url, {
-      signal: controller.signal,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
+  for (const model of models) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // Respect the global generation deadline
+      const remainingBudget = deadline - Date.now();
+      if (remainingBudget < 4000) {
+        console.warn(`[SVG Generator] Skipping ${model} attempt ${attempt} — deadline nearly reached.`);
+        return null;
+      }
+      const callTimeout = Math.min(15000, remainingBudget - 1000);
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), callTimeout);
+
+      try {
+        console.log(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxRetries}] Generating SVG for: "${title}"...`);
+        const response = await fetch(url, {
+          signal: controller.signal,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
               {
-                text: `${systemPrompt}\n\n${userPrompt}`
+                parts: [
+                  {
+                    text: `${systemPrompt}\n\n${userPrompt}`
+                  }
+                ]
               }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2
+            ],
+            generationConfig: {
+              temperature: 0.2
+            }
+          })
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Status ${response.status}: ${errText}`);
         }
-      })
-    });
 
-    clearTimeout(timeoutId);
+        const data = await response.json();
+        const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!contentText) {
+          throw new Error("No SVG content returned from Gemini API.");
+        }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini API responded with status ${response.status}: ${errText}`);
+        let cleanedText = contentText.trim();
+        if (cleanedText.startsWith("```")) {
+          cleanedText = cleanedText.replace(/^```(?:xml|svg)?\n?/i, "").replace(/\n?```$/, "").trim();
+        }
+
+        if (!cleanedText.startsWith("<svg")) {
+          throw new Error("Returned content does not appear to be a valid SVG element.");
+        }
+
+        // Parse the real viewBox so the slide compiler can center the diagram
+        // with the correct aspect ratio (the model doesn't always honor 680x400).
+        let aspectRatio = 680 / 400;
+        const vbMatch = cleanedText.match(/viewBox\s*=\s*["']\s*[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)\s*["']/i);
+        if (vbMatch) {
+          const vbW = parseFloat(vbMatch[1]);
+          const vbH = parseFloat(vbMatch[2]);
+          if (vbW > 0 && vbH > 0) {
+            aspectRatio = vbW / vbH;
+          }
+        }
+
+        // Convert raw SVG string to Base64 data URI
+        const base64Data = Buffer.from(cleanedText).toString('base64');
+        return { dataUri: `data:image/svg+xml;base64,${base64Data}`, aspectRatio };
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxRetries}] failed: ${err.message}`);
+        
+        if (attempt < maxRetries) {
+          const delay = attempt * 1000 + Math.random() * 500; // Staggered retry delay (1s - 1.5s)
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
-
-    const data = await response.json();
-    const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!contentText) {
-      throw new Error("No SVG content returned from Gemini API.");
-    }
-
-    let cleanedText = contentText.trim();
-    if (cleanedText.startsWith("```")) {
-      cleanedText = cleanedText.replace(/^```(?:xml|svg)?\n?/i, "").replace(/\n?```$/, "").trim();
-    }
-
-    if (!cleanedText.startsWith("<svg")) {
-      throw new Error("Returned content does not appear to be a valid SVG element.");
-    }
-
-    // Convert raw SVG string to Base64 data URI
-    const base64Data = Buffer.from(cleanedText).toString('base64');
-    return `data:image/svg+xml;base64,${base64Data}`;
-
-  } catch (err) {
-    console.error("[SVG Generator] SVG generation failed:", err.message);
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  console.error(`[SVG Generator] All models and retries failed to generate SVG for "${title}".`);
+  return null;
 }
 
 /**
@@ -161,11 +210,16 @@ Rules:
  * @param {string} accentName - Accent color choice (e.g. "Cobalt Blue", "Emerald Green", "Terracotta Rust", "Royal Purple", "Crimson Red")
  * @returns {Promise<Buffer>} The generated PPTX file buffer
  */
-export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue") {
+export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue", deadline = Date.now() + 45000) {
   const pptx = new pptxgen();
   
-  // Set presentation layout to widescreen (16:9)
-  pptx.layout = 'LAYOUT_16x9';
+  // Set presentation layout to widescreen 13.33in x 7.5in.
+  // CRITICAL: All activity-slide coordinates (w: 11.7 etc.) were authored for this
+  // canvas. The previous 'LAYOUT_16x9' is only 10in x 5.625in, which pushed text
+  // boxes off the right edge and below the bottom of the slide.
+  pptx.layout = 'LAYOUT_WIDE';
+  const SLIDE_W = 13.33;
+  const SLIDE_H = 7.5;
 
   // Enforce global styling guidelines
   const BG_COLOR = "FAFAF8";      // Soft off-white (less projector glare)
@@ -185,10 +239,10 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
   const slides = slidesJSON.slides || [];
 
-  // Generate all slide visuals (both SVG diagrams and Imagen images) concurrently in parallel.
-  // Since we are using the paid Gemini API tier, rate-limiting delays are not required,
-  // and concurrent execution prevents the client-side request timeout (60s).
+  // Generate all slide visuals (both SVG diagrams and Imagen images) concurrently in parallel,
+  // but stagger the start times by 350ms to prevent hitting rate limit / concurrency ceilings.
   const visualPromises = [];
+  let staggerDelay = 0;
   for (const s of slides) {
     if (s.type === 'content') {
       // Force visualMethod to 'svg' if the visualDescription indicates a diagram, chart, or labelled illustration.
@@ -198,13 +252,29 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         s.visualMethod = 'svg';
       }
 
+      const currentDelay = staggerDelay;
+      staggerDelay += 200; // shorter stagger — still spreads the burst, saves wall-clock time
+
       if (s.visualMethod === 'svg') {
         visualPromises.push((async () => {
-          s.imageBase64 = await generateSvgFromGemini(s.title, s.visualDescription);
+          if (currentDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, currentDelay));
+          }
+          const svgResult = await generateSvgFromGemini(s.title, s.visualDescription, deadline);
+          if (svgResult) {
+            s.imageBase64 = svgResult.dataUri;
+            s.imageAspectRatio = svgResult.aspectRatio;
+          } else {
+            s.imageBase64 = null;
+          }
         })());
       } else {
         visualPromises.push((async () => {
-          s.imageBase64 = await generateImageFromImagen(s.visualDescription);
+          if (currentDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, currentDelay));
+          }
+          s.imageBase64 = await generateImageFromImagen(s.visualDescription, deadline);
+          s.imageAspectRatio = 16 / 9; // Imagen called with aspectRatio "16:9"
         })());
       }
     }
@@ -222,39 +292,41 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
     switch (s.type) {
       case 'title':
-        // Big Title (38pt, clean sans-serif, accent color)
+        // Big Title (44pt, clean sans-serif, accent color)
         slide.addText(s.title || "Lesson Topic", {
-          x: 0.8,
-          y: 1.5,
-          w: 8.4,
-          h: 1.5,
-          fontSize: 38,
+          x: 1.0,
+          y: 2.0,
+          w: 11.3,
+          h: 1.9,
+          fontSize: 44,
           bold: true,
           color: accentHex,
           fontFace: FONT_FAMILY,
-          valign: 'middle',
+          valign: 'bottom',
           fit: 'shrink'
         });
 
-        // Subtitle (22pt, near-black text)
+        // Decorative Accent Bar — explicit no-outline so it can't render as a
+        // stray underline, and positioned with clear air below the title box.
+        slide.addShape(pptx.shapes.RECTANGLE, {
+          x: 1.0,
+          y: 4.15,
+          w: 3.4,
+          h: 0.09,
+          fill: { color: accentHex },
+          line: { type: 'none' }
+        });
+
+        // Subtitle (24pt, near-black text)
         slide.addText(s.subtitle || "Subject & Level", {
-          x: 0.8,
-          y: 3.2,
-          w: 8.4,
-          h: 0.8,
-          fontSize: 22,
+          x: 1.0,
+          y: 4.45,
+          w: 11.3,
+          h: 0.9,
+          fontSize: 24,
           color: TEXT_COLOR,
           fontFace: FONT_FAMILY,
           valign: 'top'
-        });
-
-        // Decorative Accent Line
-        slide.addShape(pptx.shapes.RECTANGLE, {
-          x: 0.8,
-          y: 3.0,
-          w: 3.0,
-          h: 0.08,
-          fill: { color: accentHex }
         });
         break;
 
@@ -263,7 +335,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         slide.addText(s.title || "Learning Objectives", {
           x: 0.8,
           y: 0.5,
-          w: 8.4,
+          w: 11.7,
           h: 0.8,
           fontSize: 38,
           bold: true,
@@ -281,9 +353,9 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
           slide.addText(listItems, {
             x: 0.8,
-            y: 1.6,
-            w: 8.4,
-            h: 3.2,
+            y: 1.8,
+            w: 11.7,
+            h: 5.2,
             valign: 'top',
             fit: 'shrink'
           });
@@ -295,7 +367,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         slide.addText(s.title || "Lesson Roadmap", {
           x: 0.8,
           y: 0.5,
-          w: 8.4,
+          w: 11.7,
           h: 0.8,
           fontSize: 38,
           bold: true,
@@ -313,29 +385,30 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
           slide.addText(listItems, {
             x: 0.8,
-            y: 1.5,
-            w: 8.4,
-            h: 3.2,
-            valign: 'top'
+            y: 1.7,
+            w: 11.7,
+            h: 5.3,
+            valign: 'top',
+            fit: 'shrink'
           });
         }
         break;
 
-      case 'content':
-        // Assertion Header (a full-sentence claim, 26pt, bold, near-black)
+      case 'content': {
+        // Assertion Header (a full-sentence claim, bold, near-black)
         const headerText = s.title || "";
-        let headerFontSize = 26;
+        let headerFontSize = 28;
         if (headerText.length > 120) {
-          headerFontSize = 18;
+          headerFontSize = 20;
         } else if (headerText.length > 80) {
-          headerFontSize = 22;
+          headerFontSize = 24;
         }
 
         slide.addText(headerText, {
-          x: 0.6,
-          y: 0.3,
-          w: 8.8,
-          h: 1.1,
+          x: 0.7,
+          y: 0.35,
+          w: 11.9,
+          h: 1.15,
           fontSize: headerFontSize,
           bold: true,
           color: TEXT_COLOR,
@@ -344,68 +417,92 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           fit: 'shrink'
         });
 
-        // Split Layout: Bullets on Left (24pt), Visual Evidence Card on Right
+        // Split Layout: Bullets on Left, Visual Evidence on Right
         if (s.bullets && s.bullets.length > 0) {
           const contentItems = s.bullets.slice(0, 4).map(b => ({
             text: b,
-            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 34 }
+            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 36 }
           }));
 
           slide.addText(contentItems, {
-            x: 0.6,
-            y: 1.4,
-            w: 4.2,
-            h: 3.6,
-            valign: 'top'
+            x: 0.7,
+            y: 1.8,
+            w: 5.9,
+            h: 5.2,
+            valign: 'top',
+            fit: 'shrink'
           });
         }
 
+        // Visual region on the right half of the wide canvas
+        const REGION = { x: 7.0, y: 1.8, w: 5.6, h: 4.9 };
+
         if (s.imageBase64) {
-          // 1. Draw a white background placeholder card (fills empty space if contain size has borders)
-          slide.addShape(pptx.shapes.RECTANGLE, {
-            x: 5.1,
-            y: 1.4,
-            w: 4.3,
-            h: 2.7,
-            fill: { color: "FFFFFF" }
+          // Mathematically center the image inside the region using its known
+          // aspect ratio. pptxgenjs `sizing: contain` top-left-anchors the scaled
+          // image, which caused inconsistent placement — so we size it ourselves.
+          // Imagen output is always 16:9; generated SVGs use viewBox 680x400.
+          const imgAR = s.imageAspectRatio || (s.visualMethod === 'svg' ? 680 / 400 : 16 / 9);
+          const regionAR = REGION.w / REGION.h;
+
+          let drawW, drawH;
+          if (imgAR >= regionAR) {
+            drawW = REGION.w;
+            drawH = REGION.w / imgAR;
+          } else {
+            drawH = REGION.h;
+            drawW = REGION.h * imgAR;
+          }
+
+          const drawX = REGION.x + (REGION.w - drawW) / 2;
+          const drawY = REGION.y + (REGION.h - drawH) / 2;
+
+          // Soft white card behind the visual for a consistent frame
+          slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+            x: REGION.x - 0.1,
+            y: REGION.y - 0.1,
+            w: REGION.w + 0.2,
+            h: REGION.h + 0.2,
+            fill: { color: "FFFFFF" },
+            line: { color: "E2E8F0", width: 1 },
+            rectRadius: 0.08
           });
 
-          // 2. Render the actual photographic image using 'contain' sizing
           slide.addImage({
             data: s.imageBase64,
-            x: 5.1,
-            y: 1.4,
-            w: 4.3,
-            h: 2.7,
-            sizing: { type: 'contain', w: 4.3, h: 2.7 }
+            x: drawX,
+            y: drawY,
+            w: drawW,
+            h: drawH
           });
         } else {
-          // Right Column: Fallback Native Concept Card (when image fetch fails)
-          // 1. Draw card background rounded rectangle
+          // Right Column: Fallback Native Concept Card (when image generation fails)
           slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-            x: 5.1,
-            y: 1.4,
-            w: 4.3,
-            h: 3.6,
+            x: REGION.x,
+            y: REGION.y,
+            w: REGION.w,
+            h: REGION.h,
             fill: { color: "F1F5F9" }, // Slate-100 card fill
-            line: { color: accentHex, width: 2 }
+            line: { color: accentHex, width: 2 },
+            rectRadius: 0.08
           });
 
-          // 2. Draw "KEY CONCEPT" header pill
+          // "KEY CONCEPT" header pill
           slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-            x: 5.4,
-            y: 1.7,
-            w: 1.5,
-            h: 0.35,
+            x: REGION.x + 0.35,
+            y: REGION.y + 0.35,
+            w: 1.7,
+            h: 0.4,
             fill: { color: accentHex },
-            line: { color: accentHex, width: 1 }
+            line: { type: 'none' },
+            rectRadius: 0.2
           });
           slide.addText("KEY CONCEPT", {
-            x: 5.4,
-            y: 1.7,
-            w: 1.5,
-            h: 0.35,
-            fontSize: 10,
+            x: REGION.x + 0.35,
+            y: REGION.y + 0.35,
+            w: 1.7,
+            h: 0.4,
+            fontSize: 11,
             bold: true,
             color: "FFFFFF",
             fontFace: FONT_FAMILY,
@@ -413,22 +510,23 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             valign: 'middle'
           });
 
-          // 3. Render the visual description or title as a clean educational quote
           const fallbackText = s.visualDescription || s.title || "Visual representation not available.";
           slide.addText(fallbackText, {
-            x: 5.4,
-            y: 2.2,
-            w: 3.7,
-            h: 2.4,
-            fontSize: 15,
+            x: REGION.x + 0.35,
+            y: REGION.y + 1.0,
+            w: REGION.w - 0.7,
+            h: REGION.h - 1.35,
+            fontSize: 16,
             italic: true,
             color: TEXT_COLOR,
             fontFace: FONT_FAMILY,
             valign: 'top',
-            wrap: true
+            wrap: true,
+            fit: 'shrink'
           });
         }
         break;
+      }
 
       case 'mcq': {
         // Activity Header (max 25% height, 24pt, normal black text)
@@ -448,8 +546,8 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         });
 
         if (s.bullets && s.bullets.length > 0) {
-          const rowHeight = 0.7;
-          const spacing = 0.15;
+          const rowHeight = 0.95;
+          const spacing = 0.2;
           s.bullets.slice(0, 4).forEach((opt, idx) => {
             const isCorrect = highlightAnswer && s.correctAnswer && (
               opt.trim().startsWith(s.correctAnswer.trim()) ||
@@ -824,7 +922,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         slide.addText(s.title || "Key Takeaways", {
           x: 0.8,
           y: 0.5,
-          w: 8.4,
+          w: 11.7,
           h: 0.8,
           fontSize: 38,
           bold: true,
@@ -842,10 +940,11 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
           slide.addText(summaryItems, {
             x: 0.8,
-            y: 1.6,
-            w: 8.4,
-            h: 3.2,
-            valign: 'top'
+            y: 1.8,
+            w: 11.7,
+            h: 5.2,
+            valign: 'top',
+            fit: 'shrink'
           });
         }
         break;
@@ -855,7 +954,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         slide.addText(s.title || "Slide Content", {
           x: 0.8,
           y: 0.5,
-          w: 8.4,
+          w: 11.7,
           h: 0.8,
           fontSize: 38,
           bold: true,
@@ -871,10 +970,11 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
 
           slide.addText(fallbackItems, {
             x: 0.8,
-            y: 1.5,
-            w: 8.4,
-            h: 3.2,
-            valign: 'top'
+            y: 1.7,
+            w: 11.7,
+            h: 5.3,
+            valign: 'top',
+            fit: 'shrink'
           });
         }
     }

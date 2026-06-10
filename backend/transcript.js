@@ -32,13 +32,22 @@ export async function fetchYouTubeTranscript(videoId) {
   }
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const response = await fetch(watchUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Cache-Control': 'no-cache'
-    }
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000); // Enforce 6-second timeout
+
+  let response;
+  try {
+    response = await fetch(watchUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache'
+      }
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     throw new Error(`Failed to request YouTube watch page: Status ${response.status}`);
@@ -87,12 +96,20 @@ export async function fetchYouTubeTranscript(videoId) {
 
   // Append formatting parameter to fetch structured JSON format rather than XML
   const transcriptUrl = selectedTrack.baseUrl + '&fmt=json3';
-  
-  const transcriptResponse = await fetch(transcriptUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-  });
+  const transcriptController = new AbortController();
+  const transcriptTimeoutId = setTimeout(() => transcriptController.abort(), 6000); // Enforce 6-second timeout
+
+  let transcriptResponse;
+  try {
+    transcriptResponse = await fetch(transcriptUrl, {
+      signal: transcriptController.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+  } finally {
+    clearTimeout(transcriptTimeoutId);
+  }
 
   if (!transcriptResponse.ok) {
     throw new Error(`Failed to fetch transcript track: Status ${transcriptResponse.status}`);

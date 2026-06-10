@@ -455,7 +455,7 @@ async function initPopup() {
 
       const backendUrl = `${BACKEND_URL}/api/generate-kit`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); 
+      const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
       const response = await fetch(backendUrl, {
         method: "POST",
@@ -508,7 +508,7 @@ async function initPopup() {
     } catch (err) {
       let errMsg = err.message;
       if (err.name === "AbortError") {
-        errMsg = "Request timed out (60s). Check backend terminal logs.";
+        errMsg = "Request timed out (120s). The backend may be cold-starting — try again.";
       }
       showStatus("error", `Compilation Failed: ${errMsg}`);
       if (currentUser) {
@@ -556,7 +556,7 @@ async function initPopup() {
 
       const backendUrl = `${BACKEND_URL}/api/generate-powerpoint`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); 
+      const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
       const response = await fetch(backendUrl, {
         method: "POST",
@@ -609,7 +609,7 @@ async function initPopup() {
     } catch (err) {
       let errMsg = err.message;
       if (err.name === "AbortError") {
-        errMsg = "Request timed out (60s). Check backend terminal logs.";
+        errMsg = "Request timed out (120s). The backend may be cold-starting — try again.";
       }
       showStatus("error", `PowerPoint Generation Failed: ${errMsg}`);
       if (currentUser) {
@@ -658,7 +658,7 @@ async function initPopup() {
 
       const backendUrl = `${BACKEND_URL}/api/generate-blooket`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); 
+      const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
       const response = await fetch(backendUrl, {
         method: "POST",
@@ -712,7 +712,7 @@ async function initPopup() {
     } catch (err) {
       let errMsg = err.message;
       if (err.name === "AbortError") {
-        errMsg = "Request timed out (60s). Check backend terminal logs.";
+        errMsg = "Request timed out (120s). The backend may be cold-starting — try again.";
       }
       showStatus("error", `Blooket Generation Failed: ${errMsg}`);
       if (currentUser) {

@@ -17,27 +17,36 @@ async function callGeminiJSON({ systemPrompt, userPrompt, temperature, logPrefix
       console.log(`[${logPrefix}] Attempting synthesis using Gemini model: ${modelName}...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `${systemPrompt}\n\n${userPrompt}`
-                }
-              ]
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // Enforce 25-second timeout
+
+      let response;
+      try {
+        response = await fetch(url, {
+          signal: controller.signal,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `${systemPrompt}\n\n${userPrompt}`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature
             }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature
-          }
-        })
-      });
+          })
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         const errText = await response.text();

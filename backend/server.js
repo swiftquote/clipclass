@@ -134,6 +134,9 @@ async function authenticateUser(req, res, next) {
   const token = authHeader.split("Bearer ")[1];
 
   // Path A: Firebase Admin Verification (Production Mode)
+  // SECURITY: when Firebase is initialized, a failed verification is a hard 401.
+  // It must NEVER fall through to the mock path — that allowed any random token
+  // to authenticate and mint fresh free-tier quota.
   if (isFirebaseInitialized) {
     try {
       const decodedToken = await admin.auth().verifyIdToken(token);
@@ -143,7 +146,8 @@ async function authenticateUser(req, res, next) {
       };
       return next();
     } catch (authErr) {
-      console.warn("Firebase Token verification failed, trying mock fallback:", authErr.message);
+      console.warn("Firebase Token verification failed:", authErr.message);
+      return res.status(401).json({ error: "Unauthorized: Invalid or expired authentication token." });
     }
   }
 
@@ -470,6 +474,11 @@ app.post('/api/create-checkout-session', authenticateUser, async (req, res) => {
 // MOCK DEVELOPER CHECKOUT PAGE
 // ==========================================
 app.get('/api/mock-checkout', (req, res) => {
+  // SECURITY: dev-only sandbox. Never available when real Stripe or Firestore is live.
+  if (stripe || isFirebaseInitialized) {
+    return res.status(404).json({ error: "Not found." });
+  }
+
   const { uid } = req.query;
 
   if (!uid) {
@@ -700,7 +709,7 @@ Return ONLY raw JSON. Do not include markdown code block formatting (\`\`\`json)
 
   const userPrompt = `Video Title: "${videoTitle}"`;
   
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"];
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash"];
   let lastError = null;
 
   for (const modelName of candidateModels) {
@@ -708,27 +717,36 @@ Return ONLY raw JSON. Do not include markdown code block formatting (\`\`\`json)
       console.log(`[Transcript Fallback] Attempting topic generation using model: ${modelName}...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `${systemPrompt}\n\n${userPrompt}`
-                }
-              ]
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Enforce 15-second timeout
+
+      let response;
+      try {
+        response = await fetch(url, {
+          signal: controller.signal,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `${systemPrompt}\n\n${userPrompt}`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.35
             }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.35
-          }
-        })
-      });
+          })
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         const errText = await response.text();
@@ -759,6 +777,13 @@ Return ONLY raw JSON. Do not include markdown code block formatting (\`\`\`json)
 // MOCK CHECKOUT SUCCESS HANDLER
 // ==========================================
 app.post('/api/mock-checkout-success', async (req, res) => {
+  // SECURITY: dev-only sandbox. Previously this endpoint was unauthenticated and
+  // unguarded — anyone could POST any UID and upgrade that account to PRO in the
+  // live Firestore database. Real upgrades happen ONLY via the Stripe webhook.
+  if (stripe || isFirebaseInitialized) {
+    return res.status(404).json({ error: "Not found." });
+  }
+
   const { uid } = req.body;
 
   if (!uid) {
@@ -785,6 +810,7 @@ app.post('/api/mock-checkout-success', async (req, res) => {
 // CORE GENERATION ENDPOINT (Authenticated & Quota Checked)
 // ==========================================
 app.post('/api/generate-kit', authenticateUser, async (req, res) => {
+  const requestDeadline = Date.now() + 55000; // keep total response under the 60s window
   const { uid, email } = req.user;
   const { videoId, videoTitle, channelName, ageGroup, translationLanguage, gamifiedTrivia, questionsCount, showTimestamps } = req.body;
 
@@ -1168,6 +1194,10 @@ app.post('/api/generate-blooket', authenticateUser, async (req, res) => {
 
 // PowerPoint (PPTX) Generation Endpoint (Shares the weekly usage limit of 10 for Free, unlimited for PRO)
 app.post('/api/generate-powerpoint', authenticateUser, async (req, res) => {
+  // Hard wall-clock budget: transcript + Gemini content + all visuals + PPTX
+  // compile must finish inside this window, or visuals degrade gracefully to
+  // the native concept-card fallback instead of the whole request timing out.
+  const requestDeadline = Date.now() + 52000;
   const { uid, email } = req.user;
   const { videoId, videoTitle, channelName, ageGroup, theme } = req.body;
 
@@ -1303,7 +1333,7 @@ app.post('/api/generate-powerpoint', authenticateUser, async (req, res) => {
     console.log("Step 3: Compiling structured slides into professional PPTX presentation...");
     let pptxBuffer;
     try {
-      pptxBuffer = await compilePresentation(pptxJSON, theme || "Default");
+      pptxBuffer = await compilePresentation(pptxJSON, theme || "Default", requestDeadline);
     } catch (pptxErr) {
       console.error("PowerPoint Compilation Engine failed:", pptxErr);
       return res.status(500).json({ error: `PPTX Compiler Error: ${pptxErr.message}` });
