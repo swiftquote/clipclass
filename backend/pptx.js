@@ -80,13 +80,293 @@ async function generateImageFromImagen(visualDescription, deadline = Infinity) {
 }
 
 /**
- * Generates an SVG diagram using Google Gemini 2.5 Flash and returns it as a Base64 data URI.
+ * Renders a structured JSON drawing specification into a styled, auto-fitted, centred SVG string.
+ *
+ * @param {Object} spec - JSON drawing spec with elements (polygons, rects, circles, lines, arrows, labels)
+ * @param {string} accentHex - Accent theme hex color (e.g. "#2563EB")
+ * @returns {string} SVG string
+ */
+function renderSvgFromSpec(spec, accentHex) {
+  if (!spec || !Array.isArray(spec.elements)) {
+    throw new Error("Invalid specification format: elements must be an array.");
+  }
+
+  const canvasW = 640;
+  const canvasH = 560;
+  const margin = 40;
+
+  // Mix accent color with white to get a soft light-accent tint
+  const getLightAccent = (hexStr) => {
+    const cleanHex = hexStr.replace('#', '');
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    const mix = (val) => Math.round(val + (255 - val) * 0.88).toString(16).padStart(2, '0');
+    return `#${mix(r)}${mix(g)}${mix(b)}`;
+  };
+
+  const palette = {
+    "accent": accentHex,
+    "accent-light": getLightAccent(accentHex),
+    "neutral": "#334155", // Slate-700
+    "neutral-light": "#F8FAFC", // Slate-50
+    "none": "none"
+  };
+
+  const strokePalette = {
+    "accent": accentHex,
+    "neutral": "#334155", // Slate-700
+    "none": "none"
+  };
+
+  const num = (val) => {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? null : parsed;
+  };
+
+  // Find bounding box of all geometric elements to determine scaling & centring
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  const updateMinMax = (x, y) => {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  };
+
+  spec.elements.forEach(el => {
+    switch (el.type) {
+      case 'polygon':
+        if (Array.isArray(el.points)) {
+          el.points.forEach(pt => {
+            if (Array.isArray(pt) && pt.length >= 2) {
+              const px = num(pt[0]);
+              const py = num(pt[1]);
+              if (px !== null && py !== null) {
+                updateMinMax(px, py);
+              }
+            }
+          });
+        }
+        break;
+      case 'rect': {
+        const x = num(el.x);
+        const y = num(el.y);
+        const w = num(el.w);
+        const h = num(el.h);
+        if (x !== null && y !== null && w !== null && h !== null) {
+          updateMinMax(x, y);
+          updateMinMax(x + w, y + h);
+        }
+        break;
+      }
+      case 'circle': {
+        const cx = num(el.cx);
+        const cy = num(el.cy);
+        const r = num(el.r);
+        if (cx !== null && cy !== null && r !== null) {
+          updateMinMax(cx - r, cy - r);
+          updateMinMax(cx + r, cy + r);
+        }
+        break;
+      }
+      case 'line':
+      case 'arrow': {
+        const x1 = num(el.x1);
+        const y1 = num(el.y1);
+        const x2 = num(el.x2);
+        const y2 = num(el.y2);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+          updateMinMax(x1, y1);
+          updateMinMax(x2, y2);
+        }
+        break;
+      }
+      case 'label': {
+        const x = num(el.x);
+        const y = num(el.y);
+        if (x !== null && y !== null && el.text) {
+          const textLen = String(el.text).length;
+          const estW = textLen * 11; // 22px font size approx character width
+          const estH = 24;
+          const anchor = el.anchor || 'middle';
+          
+          let lMinX, lMaxX;
+          if (anchor === 'start') {
+            lMinX = x;
+            lMaxX = x + estW;
+          } else if (anchor === 'end') {
+            lMinX = x - estW;
+            lMaxX = x;
+          } else {
+            lMinX = x - estW / 2;
+            lMaxX = x + estW / 2;
+          }
+          const lMinY = y - estH / 2;
+          const lMaxY = y + estH / 2;
+
+          updateMinMax(lMinX, lMinY);
+          updateMinMax(lMaxX, lMaxY);
+        }
+        break;
+      }
+    }
+  });
+
+  // Handle case with no geometries
+  if (minX === Infinity || maxX === -Infinity || minY === Infinity || maxY === -Infinity) {
+    minX = 0; maxX = 100; minY = 0; maxY = 100;
+  }
+
+  const geomW = maxX - minX;
+  const geomH = maxY - minY;
+  const W = geomW === 0 ? 1 : geomW;
+  const H = geomH === 0 ? 1 : geomH;
+
+  const targetW = canvasW - 2 * margin; // 560
+  const targetH = canvasH - 2 * margin; // 480
+
+  const S = Math.min(targetW / W, targetH / H);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+
+  // Geometry translation to centre at (320, 280)
+  const dx = 320 - cx * S;
+  const dy = 280 - cy * S;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 560" width="100%" height="100%">\n`;
+  svg += `  <rect width="640" height="560" fill="#FFFFFF" />\n`;
+
+  // Define marker for arrowheads
+  svg += `  <defs>\n`;
+  svg += `    <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n`;
+  svg += `      <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="${palette.neutral}" />\n`;
+  svg += `    </marker>\n`;
+  svg += `    <marker id="arrowhead-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n`;
+  svg += `      <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="${palette.accent}" />\n`;
+  svg += `    </marker>\n`;
+  svg += `  </defs>\n`;
+
+  // Start group for transformed geometry
+  svg += `  <g transform="translate(${dx}, ${dy}) scale(${S})">\n`;
+
+  const getFill = (f) => palette[f] || palette["neutral-light"];
+  const getStroke = (s) => strokePalette[s] || strokePalette["neutral"];
+
+  // First pass: render all geometries (except labels)
+  spec.elements.forEach(el => {
+    if (el.type === 'label') return;
+
+    const fillVal = getFill(el.fill);
+    const strokeVal = getStroke(el.stroke);
+    const strokeWidth = 3;
+
+    switch (el.type) {
+      case 'polygon':
+        if (Array.isArray(el.points) && el.points.length >= 2) {
+          const validPts = [];
+          el.points.forEach(pt => {
+            if (Array.isArray(pt) && pt.length >= 2) {
+              const px = num(pt[0]);
+              const py = num(pt[1]);
+              if (px !== null && py !== null) validPts.push([px, py]);
+            }
+          });
+          if (validPts.length >= 2) {
+            const pointsStr = validPts.map(pt => pt.join(',')).join(' ');
+            svg += `    <polygon points="${pointsStr}" fill="${fillVal}" stroke="${strokeVal}" stroke-width="${strokeWidth}" stroke-linejoin="round" vector-effect="non-scaling-stroke" />\n`;
+          }
+        }
+        break;
+      case 'rect': {
+        const x = num(el.x);
+        const y = num(el.y);
+        const w = num(el.w);
+        const h = num(el.h);
+        if (x !== null && y !== null && w !== null && h !== null) {
+          svg += `    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fillVal}" stroke="${strokeVal}" stroke-width="${strokeWidth}" stroke-linejoin="round" rx="4" vector-effect="non-scaling-stroke" />\n`;
+        }
+        break;
+      }
+      case 'circle': {
+        const cx = num(el.cx);
+        const cy = num(el.cy);
+        const r = num(el.r);
+        if (cx !== null && cy !== null && r !== null) {
+          svg += `    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillVal}" stroke="${strokeVal}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />\n`;
+        }
+        break;
+      }
+      case 'line': {
+        const x1 = num(el.x1);
+        const y1 = num(el.y1);
+        const x2 = num(el.x2);
+        const y2 = num(el.y2);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+          svg += `    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeVal}" stroke-width="${strokeWidth}" stroke-linecap="round" vector-effect="non-scaling-stroke" />\n`;
+        }
+        break;
+      }
+      case 'arrow': {
+        const x1 = num(el.x1);
+        const y1 = num(el.y1);
+        const x2 = num(el.x2);
+        const y2 = num(el.y2);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+          const markerId = el.stroke === 'accent' ? 'arrowhead-accent' : 'arrowhead';
+          svg += `    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeVal}" stroke-width="${strokeWidth}" stroke-linecap="round" marker-end="url(#${markerId})" vector-effect="non-scaling-stroke" />\n`;
+        }
+        break;
+      }
+    }
+  });
+
+  svg += `  </g>\n`;
+
+  // Second pass: render labels at transformed positions but unscaled text size (fixed 22px)
+  svg += `  <g font-family="Inter, system-ui, -apple-system, sans-serif" font-size="22" font-weight="600">\n`;
+  spec.elements.forEach(el => {
+    if (el.type !== 'label') return;
+
+    const x = num(el.x);
+    const y = num(el.y);
+    if (x === null || y === null || !el.text) return;
+
+    const tx = 320 + (x - cx) * S;
+    const ty = 280 + (y - cy) * S;
+    const anchor = el.anchor || 'middle';
+    const textAnchor = anchor === 'start' ? 'start' : anchor === 'end' ? 'end' : 'middle';
+
+    const escapedText = String(el.text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    // Text halo for high readability
+    svg += `    <text x="${tx}" y="${ty}" fill="white" stroke="white" stroke-width="6" stroke-linejoin="round" text-anchor="${textAnchor}" dominant-baseline="central" paint-order="stroke fill">${escapedText}</text>\n`;
+    svg += `    <text x="${tx}" y="${ty}" fill="${palette.neutral}" text-anchor="${textAnchor}" dominant-baseline="central">${escapedText}</text>\n`;
+  });
+  svg += `  </g>\n`;
+
+  svg += `</svg>`;
+  return svg;
+}
+
+/**
+ * Generates an SVG diagram spec using Gemini, compiles it, and returns a Base64 URI.
+ * Falls back to freeform SVG code if the JSON spec route fails.
  *
  * @param {string} title - Slide title
  * @param {string} visualDescription - Visual diagram description
- * @returns {Promise<string|null>} Base64 SVG data URI string, or null on failure
+ * @param {number} deadline - Generation deadline timestamp
+ * @param {string} accentHex - Slide theme accent color hex code
+ * @returns {Promise<Object|null>} Object containing dataUri and aspectRatio, or null
  */
-async function generateSvgFromGemini(title, visualDescription, deadline = Infinity) {
+async function generateSvgFromGemini(title, visualDescription, deadline = Infinity, accentHex = "#2563EB") {
   if (!title && !visualDescription) return null;
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -95,36 +375,75 @@ async function generateSvgFromGemini(title, visualDescription, deadline = Infini
     return null;
   }
 
-  const systemPrompt = `You are a professional presentation graphic designer and software engineer.
-Your task is to generate a clean, modern, and mathematically/technically accurate SVG diagram.
-Rules:
-1. Output ONLY valid, raw, well-formatted SVG code.
-2. Start with <svg> and end with </svg>.
-3. Do NOT wrap the output in markdown block code formatting (like \`\`\`xml or \`\`\`svg) or any other text. Return ONLY the SVG.
-4. Ensure the SVG has a viewBox="0 0 680 400" and uses a white background.
-5. All text labels must be large and readable (minimum 16px font-size) using a clean sans-serif font-family (e.g. System-UI, Inter, Arial).
-6. Focus on ONE clear visual element only.`;
+  // Prompt for JSON specification of drawing primitives
+  const jsonSystemPrompt = `You are a professional presentation graphic designer and software engineer.
+Your task is to design a clean, modern, and mathematically/technically accurate educational diagram and output its structure as a JSON specification of drawing primitives.
+Canvas viewport: You can use any numeric coordinate space of your choice (e.g. 0 to 100, or exact geometric dimensions). The renderer will automatically calculate bounds, scale uniformly, and centre the diagram to fit the final viewport (640x560) with a 40px margin.
 
-  const userPrompt = `Generate a clean educational SVG diagram of: ${visualDescription || title || ""}. Focus on ONE clear visual element only. Large readable labels, minimum 16px text, white background, viewBox 680x400.`;
+You must output ONLY a valid JSON object matching this schema:
+{
+  "elements": [
+    {
+      "type": "polygon",
+      "points": [[x1, y1], [x2, y2], ...],
+      "fill": "accent" | "accent-light" | "neutral" | "neutral-light" | "none",
+      "stroke": "accent" | "neutral" | "none"
+    },
+    {
+      "type": "rect",
+      "x": x, "y": y, "w": w, "h": h,
+      "fill": "accent" | "accent-light" | "neutral" | "neutral-light" | "none",
+      "stroke": "accent" | "neutral" | "none"
+    },
+    {
+      "type": "circle",
+      "cx": cx, "cy": cy, "r": r,
+      "fill": "accent" | "accent-light" | "neutral" | "neutral-light" | "none",
+      "stroke": "accent" | "neutral" | "none"
+    },
+    {
+      "type": "line",
+      "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+      "stroke": "accent" | "neutral"
+    },
+    {
+      "type": "arrow",
+      "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+      "stroke": "accent" | "neutral"
+    },
+    {
+      "type": "label",
+      "x": x, "y": y,
+      "text": "Label Text",
+      "anchor": "start" | "middle" | "end"
+    }
+  ]
+}
+
+Styling Rules:
+- "accent" is the primary theme color.
+- "accent-light" is a soft fill tint of the accent color.
+- "neutral" is a dark charcoal for outlines.
+- "neutral-light" is a soft gray fill.
+- Keep geometries clean and simple. Place labels close to the structures they describe.
+- Do NOT output any markdown backticks (like \`\`\`json) or other text. Return ONLY the raw JSON object.`;
+
+  const jsonUserPrompt = `Generate a clean educational diagram JSON spec for: ${visualDescription || title || ""}. Keep it simple, focused on one concept, and output ONLY valid JSON.`;
 
   const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
   for (const model of models) {
-    // For the premium/slow model, only try once to save time budget.
-    // For the fallback model, we can try up to 2 times.
     const maxAttempts = (model === "gemini-2.5-flash") ? 1 : 2;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      // Respect the global generation deadline
       const remainingBudget = deadline - Date.now();
       if (remainingBudget < 4000) {
-        console.warn(`[SVG Generator] Skipping ${model} attempt ${attempt} — deadline nearly reached.`);
-        return null;
+        console.warn(`[SVG Generator] Skipping JSON spec ${model} attempt ${attempt} — deadline nearly reached.`);
+        break;
       }
 
-      // Enforce a shorter timeout for the primary model if we have a fallback available
       const callTimeout = (model === "gemini-2.5-flash")
-        ? Math.min(10000, remainingBudget - 2000) // 10s timeout for gemini-2.5-flash
+        ? Math.min(10000, remainingBudget - 2000)
         : Math.min(15000, remainingBudget - 1000);
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -132,26 +451,14 @@ Rules:
       const timeoutId = setTimeout(() => controller.abort(), callTimeout);
 
       try {
-        console.log(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxAttempts}] Generating SVG for: "${title}"...`);
+        console.log(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxAttempts}] Generating JSON spec for: "${title}"...`);
         const response = await fetch(url, {
           signal: controller.signal,
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `${systemPrompt}\n\n${userPrompt}`
-                  }
-                ]
-              }
-            ],
-            generationConfig: {
-              temperature: 0.2
-            }
+            contents: [{ parts: [{ text: `${jsonSystemPrompt}\n\n${jsonUserPrompt}` }] }],
+            generationConfig: { temperature: 0.0 } // 0.0 temperature for precise coordinate math
           })
         });
 
@@ -165,55 +472,144 @@ Rules:
         const data = await response.json();
         const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!contentText) {
-          throw new Error("No SVG content returned from Gemini API.");
+          throw new Error("No content returned from Gemini API.");
         }
 
         let cleanedText = contentText.trim();
         if (cleanedText.startsWith("```")) {
-          cleanedText = cleanedText.replace(/^```(?:xml|svg)?\n?/i, "").replace(/\n?```$/, "").trim();
+          cleanedText = cleanedText.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/, "").trim();
         }
 
-        if (!cleanedText.startsWith("<svg")) {
-          throw new Error("Returned content does not appear to be a valid SVG element.");
-        }
-
-        // Parse the real viewBox so the slide compiler can center the diagram
-        // with the correct aspect ratio (the model doesn't always honor 680x400).
-        let aspectRatio = 680 / 400;
-        const vbMatch = cleanedText.match(/viewBox\s*=\s*["']\s*[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)\s*["']/i);
-        if (vbMatch) {
-          const vbW = parseFloat(vbMatch[1]);
-          const vbH = parseFloat(vbMatch[2]);
-          if (vbW > 0 && vbH > 0) {
-            aspectRatio = vbW / vbH;
+        let isSpec = false;
+        let spec = null;
+        try {
+          spec = JSON.parse(cleanedText);
+          if (spec && Array.isArray(spec.elements)) {
+            isSpec = true;
           }
+        } catch (e) {
+          // JSON parsing failed
         }
 
-        // Convert raw SVG string to Base64 data URI
-        const base64Data = Buffer.from(cleanedText).toString('base64');
-        return { dataUri: `data:image/svg+xml;base64,${base64Data}`, aspectRatio };
+        if (isSpec) {
+          console.log(`[SVG Generator] Successfully parsed JSON Spec. Rendering SVG...`);
+          const svgString = renderSvgFromSpec(spec, accentHex);
+          const base64Data = Buffer.from(svgString).toString('base64');
+          return { dataUri: `data:image/svg+xml;base64,${base64Data}`, aspectRatio: 640 / 560 };
+        }
+
+        // Fallback: If model returned raw SVG instead of JSON, parse it directly
+        if (cleanedText.startsWith("<svg")) {
+          console.log(`[SVG Generator] Model returned direct freeform SVG instead of JSON spec.`);
+          let aspectRatio = 680 / 400;
+          const vbMatch = cleanedText.match(/viewBox\s*=\s*["']\s*[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)\s*["']/i);
+          if (vbMatch) {
+            const vbW = parseFloat(vbMatch[1]);
+            const vbH = parseFloat(vbMatch[2]);
+            if (vbW > 0 && vbH > 0) {
+              aspectRatio = vbW / vbH;
+            }
+          }
+          const base64Data = Buffer.from(cleanedText).toString('base64');
+          return { dataUri: `data:image/svg+xml;base64,${base64Data}`, aspectRatio };
+        }
+
+        throw new Error("Returned content was neither a valid JSON spec nor a raw SVG string.");
 
       } catch (err) {
         clearTimeout(timeoutId);
-        console.warn(`[SVG Generator] [Model: ${model}] [Attempt ${attempt}/${maxAttempts}] failed: ${err.message}`);
-        
-        // If the primary model fails (timeout or 503), do not retry it;
-        // switch immediately to the fallback model to preserve time budget.
+        console.warn(`[SVG Generator] JSON Spec [Model: ${model}] [Attempt ${attempt}/${maxAttempts}] failed: ${err.message}`);
+
         if (model === "gemini-2.5-flash") {
-          console.log(`[SVG Generator] Primary model failed. Switching immediately to fallback model.`);
+          console.log(`[SVG Generator] Primary JSON spec model failed. Switching immediately to fallback model.`);
           break;
         }
 
         if (attempt < maxAttempts) {
-          const delay = attempt * 1000 + Math.random() * 500; // Staggered retry delay (1s - 1.5s)
+          const delay = attempt * 1000 + Math.random() * 500;
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
   }
 
-  console.error(`[SVG Generator] All models and retries failed to generate SVG for "${title}".`);
-  return null;
+  // --- FALLBACK PATH: Freeform SVG ---
+  console.log(`[SVG Generator] Spec generation path failed or timed out. Initiating freeform SVG fallback...`);
+  const fallbackRemaining = deadline - Date.now();
+  if (fallbackRemaining < 4000) {
+    console.warn(`[SVG Generator] Skipping freeform SVG fallback — deadline nearly reached.`);
+    return null;
+  }
+
+  const fallbackSystemPrompt = `You are a professional presentation graphic designer and software engineer.
+Your task is to generate a clean, modern, and mathematically/technically accurate SVG diagram.
+Rules:
+1. Output ONLY valid, raw, well-formatted SVG code.
+2. Start with <svg> and end with </svg>.
+3. Do NOT wrap the output in markdown block code formatting (like \`\`\`xml or \`\`\`svg) or any other text. Return ONLY the SVG.
+4. Ensure the SVG has a viewBox="0 0 680 400" and uses a white background.
+5. All text labels must be large and readable (minimum 16px font-size) using a clean sans-serif font-family (e.g. System-UI, Inter, Arial).
+6. Focus on ONE clear visual element only.`;
+
+  const fallbackUserPrompt = `Generate a clean educational SVG diagram of: ${visualDescription || title || ""}. Focus on ONE clear visual element only. Large readable labels, minimum 16px text, white background, viewBox 680x400.`;
+
+  const fallbackModel = "gemini-2.5-flash-lite";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), Math.min(10000, fallbackRemaining - 1000));
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${fallbackSystemPrompt}\n\n${fallbackUserPrompt}` }] }],
+        generationConfig: { temperature: 0.2 }
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Fallback responded with status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!contentText) {
+      throw new Error("No SVG content returned from fallback.");
+    }
+
+    let cleanedText = contentText.trim();
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```(?:xml|svg)?\n?/i, "").replace(/\n?```$/, "").trim();
+    }
+
+    if (!cleanedText.startsWith("<svg")) {
+      throw new Error("Fallback content does not appear to be a valid SVG element.");
+    }
+
+    let aspectRatio = 680 / 400;
+    const vbMatch = cleanedText.match(/viewBox\s*=\s*["']\s*[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)\s*["']/i);
+    if (vbMatch) {
+      const vbW = parseFloat(vbMatch[1]);
+      const vbH = parseFloat(vbMatch[2]);
+      if (vbW > 0 && vbH > 0) {
+        aspectRatio = vbW / vbH;
+      }
+    }
+
+    console.log(`[SVG Generator] Successful freeform SVG fallback for: "${title}"`);
+    const base64Data = Buffer.from(cleanedText).toString('base64');
+    return { dataUri: `data:image/svg+xml;base64,${base64Data}`, aspectRatio };
+
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error(`[SVG Generator] Freeform SVG fallback failed: ${err.message}`);
+    return null;
+  }
 }
 
 /**
@@ -274,7 +670,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           if (currentDelay > 0) {
             await new Promise(resolve => setTimeout(resolve, currentDelay));
           }
-          const svgResult = await generateSvgFromGemini(s.title, s.visualDescription, deadline);
+          const svgResult = await generateSvgFromGemini(s.title, s.visualDescription, deadline, accentHex);
           if (svgResult) {
             s.imageBase64 = svgResult.dataUri;
             s.imageAspectRatio = svgResult.aspectRatio;
@@ -452,7 +848,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
         const REGION = { x: 7.0, y: 1.8, w: 5.6, h: 4.9 };
 
         if (s.imageBase64) {
-          // Mathematically center the image inside the region using its known
+          // Mathematically centre the image inside the region using its known
           // aspect ratio. pptxgenjs `sizing: contain` top-left-anchors the scaled
           // image, which caused inconsistent placement — so we size it ourselves.
           // Imagen output is always 16:9; generated SVGs use viewBox 680x400.
