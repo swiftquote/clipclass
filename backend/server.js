@@ -350,6 +350,223 @@ app.get('/privacy-policy', (req, res) => {
   res.send(html);
 });
 
+// Public Payment Success HTML Page
+app.get('/checkout-success', (req, res) => {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Payment Successful - ClipClass</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+      <style>
+        :root {
+          --bg-color: #F8FAFC;
+          --card-bg: #FFFFFF;
+          --primary-accent: #2563EB;
+          --primary-accent-hover: #1D4ED8;
+          --success-color: #10B981;
+          --text-main: #0F172A;
+          --text-secondary: #475569;
+          --border-color: #E2E8F0;
+        }
+        
+        body {
+          margin: 0;
+          background-color: var(--bg-color);
+          color: var(--text-main);
+          font-family: 'Inter', sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          padding: 20px;
+        }
+
+        .success-container {
+          background-color: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 20px;
+          padding: 40px;
+          width: 100%;
+          max-width: 480px;
+          box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 20px 40px -15px rgba(0, 0, 0, 0.05);
+          text-align: center;
+          animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .icon-container {
+          width: 80px;
+          height: 80px;
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.2) 100%);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 24px;
+          animation: scaleCheckmark 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+        }
+
+        @keyframes scaleCheckmark {
+          from {
+            transform: scale(0);
+          }
+          to {
+            transform: scale(1);
+          }
+        }
+
+        .icon-container svg {
+          width: 38px;
+          height: 38px;
+          stroke: var(--success-color);
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        h1 {
+          font-family: 'Outfit', sans-serif;
+          font-size: 2rem;
+          font-weight: 800;
+          letter-spacing: -0.5px;
+          margin: 0 0 12px;
+          color: var(--text-main);
+        }
+
+        p.subtitle {
+          color: var(--text-secondary);
+          font-size: 1rem;
+          line-height: 1.6;
+          margin: 0 0 32px;
+        }
+
+        .steps-card {
+          background-color: #F1F5F9;
+          border-radius: 12px;
+          padding: 24px;
+          margin-bottom: 32px;
+          text-align: left;
+        }
+
+        .steps-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 0.95rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: var(--text-secondary);
+          margin: 0 0 16px;
+        }
+
+        .step-item {
+          display: flex;
+          align-items: flex-start;
+          margin-bottom: 14px;
+        }
+
+        .step-item:last-child {
+          margin-bottom: 0;
+        }
+
+        .step-number {
+          background-color: var(--primary-accent);
+          color: #FFFFFF;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 700;
+          font-size: 0.85rem;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 12px;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        .step-text {
+          font-size: 0.92rem;
+          color: var(--text-main);
+          line-height: 1.5;
+        }
+
+        .action-btn {
+          display: inline-block;
+          width: 100%;
+          box-sizing: border-box;
+          background: linear-gradient(135deg, var(--primary-accent), var(--primary-accent-hover));
+          color: #FFFFFF;
+          text-decoration: none;
+          font-family: 'Outfit', sans-serif;
+          font-size: 1rem;
+          font-weight: 700;
+          padding: 16px;
+          border-radius: 10px;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        }
+
+        .action-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+        }
+
+        .action-btn:active {
+          transform: translateY(0);
+        }
+      </style>
+    </head>
+    <body>
+      <div class="success-container">
+        <div class="icon-container">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6L9 17L4 12" />
+          </svg>
+        </div>
+        <h1>Payment Successful!</h1>
+        <p class="subtitle">Thank you for your purchase. Your ClipClass Lifetime PRO plan has been successfully activated.</p>
+        
+        <div class="steps-card">
+          <div class="steps-title">What to do next:</div>
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-text">Open any educational video on YouTube.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-text">Reopen the <strong>ClipClass</strong> Chrome extension from your toolbar.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-text">Enjoy creating unlimited widescreen slide decks, worksheets, and Blooket trivia scripts!</div>
+          </div>
+        </div>
+
+        <a href="https://youtube.com" class="action-btn">Return to YouTube</a>
+      </div>
+    </body>
+    </html>
+  `;
+  res.send(html);
+});
+
+
 // ==========================================
 // USER STATUS & QUOTA ENDPOINT
 // ==========================================
@@ -449,7 +666,7 @@ app.post('/api/create-checkout-session', authenticateUser, async (req, res) => {
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: 'https://youtube.com', // Safe placeholder that redirects back to YouTube watch page
+        success_url: `${req.get('host').includes('localhost') ? `http://${req.get('host')}` : 'https://mohammedhino-lipclass-backend.hf.space'}/checkout-success`,
         cancel_url: 'https://youtube.com',
         metadata: { uid: uid },
         customer_email: email || undefined,
