@@ -262,7 +262,7 @@ You must output a single, valid JSON object following this EXACT structure:
       "visualDescription": "Detailed visual description of a clean, content-relevant diagram, illustration, or visual model that proves the assertion header (e.g., 'A simple diagram of a leaf showing glucose molecules bonding into a long starch chain'). No generic stock art/clipart.",
       "imageSearchPhrase": "A specific 3-6 word descriptive phrase in English only optimized for Wikimedia Commons. Specify exact diagrams/concepts (e.g. 'sodium chloride ionic bond electron transfer diagram' instead of 'atom diagram'). Avoid covers, portraits, multi-panel charts, generic terms, the term 'illustration', and the slide title itself. For abstract concepts, use a concrete scene/object photograph (e.g. 'satellite television broadcast tower photograph').",
       "visualType": "Specify either 'diagram' (if the slide visual is a labeled diagram, flowchart, step-by-step process, chart, or mathematical illustration) or 'photo' (if the visual requires a real photograph, painting, or map that exists in the world).",
-      "visualMethod": "Specify either 'svg' (if the content is logic gates, circuits, truth tables, calculations, step-by-step processes requiring labelled stages, or maths/CS content where accuracy is critical) or 'generate' (if the content is biology, cells, historical events, geography, maps, or rich illustrations).",
+      "visualMethod": "Specify either 'nativeShapes' (if the visual is a diagram showing structure, process, comparison, layout, or arrangement), 'image' (if the visual must look like a real-world photograph or illustration of a physical thing), or 'none' (for text-only slides). Never use 'image' for anything containing labels, arrows, stages, or data.",
       "notes": "Bulleted teacher talking points, explanation context, discussion prompts, and timing cues (e.g. '[Pacing: 2 mins]')."
     },
     {
@@ -387,9 +387,11 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
    - "diagram" — the visual is a labeled diagram, flowchart, step-by-step process, chart, or mathematical illustration (e.g. binary conversion steps, atom structure, circuit diagram, flowchart, Pythagoras triangle, pros/cons comparison, timeline).
    - "photo" — the visual requires a real photograph, painting, or map that exists in the world (e.g. historical events, real people, places, maps, scientific photographs, artworks).
 8. Visual Method Selection Guidelines:
-   For each content slide, output a "visualMethod" field:
-   - "svg" — when the slide contains logic gates, circuits, truth tables, calculations, step-by-step processes requiring labelled stages, or maths/CS content where accuracy is critical.
-   - "generate" — when the slide contains biology, cells, historical events, geography, maps, or rich illustrations where a visual style adds more value than technical layout accuracy.
+   Set "visualMethod" using these rules, checked in order:
+   - "nativeShapes" — the visual is a DIAGRAM: anything showing structure, process, comparison, or arrangement. Examples: particle diagrams, cycles, flowcharts, timelines, labeled stages, before/after comparisons, simple graphs with <=6 data points, Venn diagrams, food chains, circuit-style layouts. If a teacher would draw it on a whiteboard with boxes, circles and arrows, it is nativeShapes.
+   - "image" — the visual must look like a real-world PHOTOGRAPH or illustration of a physical thing: a volcano, a Roman soldier, a rainforest, a microscope, a historical scene. If removing the visual and replacing it with shapes/arrows would lose meaning, it is image.
+   - "none" — text-only slides (objectives, instructions, quiz questions).
+   Never use "image" for anything containing labels, arrows, stages, or data — those are always nativeShapes.
 9. Output Format: Return ONLY raw, valid JSON. Do not include markdown code block formatting (\`\`\`json) in your actual payload.`;
 
   const userPrompt = `Generate a structured slide deck for:

@@ -481,18 +481,23 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
   const visualPromises = [];
   let staggerDelay = 0;
   for (const s of slides) {
-    if (s.type === 'content') {
-      // Force visualMethod to 'svg' if the visualDescription indicates a diagram, chart, or labelled illustration.
+    // Backward compatibility: default content slides without visualMethod to 'image'
+    if (s.type === 'content' && !s.visualMethod) {
+      s.visualMethod = 'image';
+    }
+
+    if (s.visualMethod && s.visualMethod !== 'none') {
+      // Force visualMethod to 'nativeShapes' if the visualDescription indicates a diagram, chart, or labelled illustration.
       // This prevents Imagen from trying to render hallucinated text labels.
       const desc = (s.visualDescription || "").toLowerCase();
       if (desc.includes("diagram") || desc.includes("chart") || desc.includes("labelled") || desc.includes("labeled") || desc.includes("illustration of")) {
-        s.visualMethod = 'svg';
+        s.visualMethod = 'nativeShapes';
       }
 
       const currentDelay = staggerDelay;
       staggerDelay += 200; // shorter stagger — still spreads the burst, saves wall-clock time
 
-      if (s.visualMethod === 'svg') {
+      if (s.visualMethod === 'nativeShapes') {
         visualPromises.push((async () => {
           if (currentDelay > 0) {
             await new Promise(resolve => setTimeout(resolve, currentDelay));
@@ -510,7 +515,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
             s.imageBase64 = null;
           }
         })());
-      } else {
+      } else if (s.visualMethod === 'image') {
         visualPromises.push((async () => {
           if (currentDelay > 0) {
             await new Promise(resolve => setTimeout(resolve, currentDelay));
@@ -717,113 +722,134 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           fit: 'shrink'
         });
 
-        // Split Layout: Bullets on Left, Visual Evidence on Right
-        if (s.bullets && s.bullets.length > 0) {
-          const contentItems = s.bullets.slice(0, 4).map(b => ({
-            text: b,
-            options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 36 }
-          }));
+        const hasVisual = s.visualMethod && s.visualMethod !== 'none';
 
-          slide.addText(contentItems, {
-            x: 0.7,
-            y: 1.8,
-            w: 5.9,
-            h: 5.2,
-            valign: 'top',
-            fit: 'shrink'
-          });
-        }
+        if (hasVisual) {
+          // Split Layout: Bullets on Left, Visual Evidence on Right
+          if (s.bullets && s.bullets.length > 0) {
+            const contentItems = s.bullets.slice(0, 4).map(b => ({
+              text: b,
+              options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 36 }
+            }));
 
-        // Visual region on the right half of the wide canvas
-        const REGION = { x: 7.0, y: 1.8, w: 5.6, h: 4.9 };
-
-        if (s.imageBase64) {
-          // Mathematically centre the image inside the region using its known
-          // aspect ratio. pptxgenjs `sizing: contain` top-left-anchors the scaled
-          // image, which caused inconsistent placement — so we size it ourselves.
-          // Imagen output is always 16:9; generated SVGs use viewBox 680x400.
-          const imgAR = s.imageAspectRatio || (s.visualMethod === 'svg' ? 680 / 400 : 16 / 9);
-          const regionAR = REGION.w / REGION.h;
-
-          let drawW, drawH;
-          if (imgAR >= regionAR) {
-            drawW = REGION.w;
-            drawH = REGION.w / imgAR;
-          } else {
-            drawH = REGION.h;
-            drawW = REGION.h * imgAR;
+            slide.addText(contentItems, {
+              x: 0.7,
+              y: 1.8,
+              w: 5.9,
+              h: 5.2,
+              valign: 'top',
+              fit: 'shrink'
+            });
           }
 
-          const drawX = REGION.x + (REGION.w - drawW) / 2;
-          const drawY = REGION.y + (REGION.h - drawH) / 2;
+          // Visual region on the right half of the wide canvas
+          const REGION = { x: 7.0, y: 1.8, w: 5.6, h: 4.9 };
 
-          // Soft white card behind the visual for a consistent frame
-          slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-            x: REGION.x - 0.1,
-            y: REGION.y - 0.1,
-            w: REGION.w + 0.2,
-            h: REGION.h + 0.2,
-            fill: { color: "FFFFFF" },
-            line: { color: "E2E8F0", width: 1 },
-            rectRadius: 0.08
-          });
+          if (s.imageBase64) {
+            // Mathematically centre the image inside the region using its known
+            // aspect ratio. pptxgenjs `sizing: contain` top-left-anchors the scaled
+            // image, which caused inconsistent placement — so we size it ourselves.
+            // Imagen output is always 16:9; generated SVGs use viewBox 680x400.
+            const imgAR = s.imageAspectRatio || (s.visualMethod === 'nativeShapes' ? 680 / 400 : 16 / 9);
+            const regionAR = REGION.w / REGION.h;
 
-          slide.addImage({
-            data: s.imageBase64,
-            x: drawX,
-            y: drawY,
-            w: drawW,
-            h: drawH
-          });
+            let drawW, drawH;
+            if (imgAR >= regionAR) {
+              drawW = REGION.w;
+              drawH = REGION.w / imgAR;
+            } else {
+              drawH = REGION.h;
+              drawW = REGION.h * imgAR;
+            }
+
+            const drawX = REGION.x + (REGION.w - drawW) / 2;
+            const drawY = REGION.y + (REGION.h - drawH) / 2;
+
+            // Soft white card behind the visual for a consistent frame
+            slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+              x: REGION.x - 0.1,
+              y: REGION.y - 0.1,
+              w: REGION.w + 0.2,
+              h: REGION.h + 0.2,
+              fill: { color: "FFFFFF" },
+              line: { color: "E2E8F0", width: 1 },
+              rectRadius: 0.08
+            });
+
+            slide.addImage({
+              data: s.imageBase64,
+              x: drawX,
+              y: drawY,
+              w: drawW,
+              h: drawH
+            });
+          } else {
+            // Right Column: Fallback Native Concept Card (when image generation fails)
+            slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+              x: REGION.x,
+              y: REGION.y,
+              w: REGION.w,
+              h: REGION.h,
+              fill: { color: "F1F5F9" }, // Slate-100 card fill
+              line: { color: accentHex, width: 2 },
+              rectRadius: 0.08
+            });
+
+            // "KEY CONCEPT" header pill
+            slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+              x: REGION.x + 0.35,
+              y: REGION.y + 0.35,
+              w: 1.7,
+              h: 0.4,
+              fill: { color: accentHex },
+              line: { type: 'none' },
+              rectRadius: 0.2
+            });
+            slide.addText("KEY CONCEPT", {
+              x: REGION.x + 0.35,
+              y: REGION.y + 0.35,
+              w: 1.7,
+              h: 0.4,
+              fontSize: 11,
+              bold: true,
+              color: "FFFFFF",
+              fontFace: FONT_FAMILY,
+              align: 'center',
+              valign: 'middle'
+            });
+
+            const fallbackText = s.visualDescription || s.title || "Visual representation not available.";
+            slide.addText(fallbackText, {
+              x: REGION.x + 0.35,
+              y: REGION.y + 1.0,
+              w: REGION.w - 0.7,
+              h: REGION.h - 1.35,
+              fontSize: 16,
+              italic: true,
+              color: TEXT_COLOR,
+              fontFace: FONT_FAMILY,
+              valign: 'top',
+              wrap: true,
+              fit: 'shrink'
+            });
+          }
         } else {
-          // Right Column: Fallback Native Concept Card (when image generation fails)
-          slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-            x: REGION.x,
-            y: REGION.y,
-            w: REGION.w,
-            h: REGION.h,
-            fill: { color: "F1F5F9" }, // Slate-100 card fill
-            line: { color: accentHex, width: 2 },
-            rectRadius: 0.08
-          });
+          // Full width layout for text-only content slide
+          if (s.bullets && s.bullets.length > 0) {
+            const contentItems = s.bullets.slice(0, 4).map(b => ({
+              text: b,
+              options: { fontSize: 24, fontFace: FONT_FAMILY, color: TEXT_COLOR, bullet: true, lineSpacing: 36 }
+            }));
 
-          // "KEY CONCEPT" header pill
-          slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-            x: REGION.x + 0.35,
-            y: REGION.y + 0.35,
-            w: 1.7,
-            h: 0.4,
-            fill: { color: accentHex },
-            line: { type: 'none' },
-            rectRadius: 0.2
-          });
-          slide.addText("KEY CONCEPT", {
-            x: REGION.x + 0.35,
-            y: REGION.y + 0.35,
-            w: 1.7,
-            h: 0.4,
-            fontSize: 11,
-            bold: true,
-            color: "FFFFFF",
-            fontFace: FONT_FAMILY,
-            align: 'center',
-            valign: 'middle'
-          });
-
-          const fallbackText = s.visualDescription || s.title || "Visual representation not available.";
-          slide.addText(fallbackText, {
-            x: REGION.x + 0.35,
-            y: REGION.y + 1.0,
-            w: REGION.w - 0.7,
-            h: REGION.h - 1.35,
-            fontSize: 16,
-            italic: true,
-            color: TEXT_COLOR,
-            fontFace: FONT_FAMILY,
-            valign: 'top',
-            wrap: true,
-            fit: 'shrink'
-          });
+            slide.addText(contentItems, {
+              x: 0.7,
+              y: 1.8,
+              w: 11.9,
+              h: 5.2,
+              valign: 'top',
+              fit: 'shrink'
+            });
+          }
         }
         break;
       }

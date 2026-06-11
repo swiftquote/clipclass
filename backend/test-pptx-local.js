@@ -52,6 +52,18 @@ async function runLocalTest() {
       },
       {
         "type": "content",
+        "title": "The United States uses a unique system to elect its president rather than a direct popular vote.",
+        "bullets": [
+          "Established by the U.S. Constitution",
+          "Includes electors from all 50 states",
+          "Focus of major debate and discussion",
+          "Requires strategic campaign planning"
+        ],
+        "visualMethod": "none",
+        "notes": "[Pacing: 1 min] Let's begin by discussing how the president is actually chosen..."
+      },
+      {
+        "type": "content",
         "title": "The Electoral College was created as a constitutional compromise between Congress and the popular vote.",
         "bullets": [
           "US presidential election system",
@@ -62,6 +74,7 @@ async function runLocalTest() {
         "visualDescription": "A historical illustration depicting the Constitutional Convention delegates debating the presidential election process.",
         "imageSearchPhrase": "Constitutional Convention 1787 painting",
         "visualType": "photo",
+        "visualMethod": "image",
         "notes": "Good morning, class! [Pacing: 1 min] Today, we're diving into a core part of American democracy: the Electoral College. ..."
       },
       {
@@ -76,6 +89,7 @@ async function runLocalTest() {
         "visualDescription": "An infographic map of the United States, with each state clearly labeled and displaying its current number of electoral votes.",
         "imageSearchPhrase": "United States Capitol building photo",
         "visualType": "photo",
+        "visualMethod": "nativeShapes",
         "notes": "[Pacing: 2 mins] So, how many electors does each state get? It's directly tied to their representation in Congress. Ever..."
       },
       {
@@ -104,6 +118,7 @@ async function runLocalTest() {
         "visualDescription": "A concept diagram showing two scales balancing: Popular Vote on the left versus the Electoral College on the right.",
         "imageSearchPhrase": "supercalifragilisticexpialidocious nonexistent search query",
         "visualType": "diagram",
+        "visualMethod": "nativeShapes",
         "notes": "[Pacing: 3 mins] This is the core analytical concept. It will trigger the fallback SVG diagram generation since no image will be found."
       },
       {
