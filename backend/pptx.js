@@ -120,7 +120,11 @@ function renderSpecToSvg(spec, accentHex = "2563EB") {
   const LABEL_FONT = 22;       // final on-canvas label size (never scaled with geometry)
   const PAD = 40;              // canvas margin so strokes/labels never touch edges
 
-  // ---- 1. Collect every coordinate to compute the content bounding box ----
+  // ---- 1. Bounding box from GEOMETRY ONLY ----
+  // Labels are intentionally excluded: their extents are in final pixels while
+  // geometry is in arbitrary spec units. Including them let long labels dominate
+  // the fit and shrink the actual shapes to a tiny cluster. Instead, geometry
+  // alone drives the scale, and labels are clamped into the canvas afterwards.
   const pts = [];
   const pushPt = (x, y) => {
     if (typeof x === 'number' && typeof y === 'number' && isFinite(x) && isFinite(y)) {
@@ -144,14 +148,6 @@ function renderSpecToSvg(spec, accentHex = "2563EB") {
       case 'polygon':
         (el.points || []).forEach(p => pushPt(p[0], p[1]));
         break;
-      case 'label':
-        // Reserve approximate text extents so labels are part of the fit
-        if (typeof el.x === 'number' && typeof el.y === 'number') {
-          const tw = String(el.text || "").length * LABEL_FONT * 0.32;
-          pushPt(el.x - tw, el.y - LABEL_FONT * 0.5);
-          pushPt(el.x + tw, el.y + LABEL_FONT * 0.5);
-        }
-        break;
     }
   }
 
@@ -167,7 +163,7 @@ function renderSpecToSvg(spec, accentHex = "2563EB") {
   const bw = Math.max(maxX - minX, 1);
   const bh = Math.max(maxY - minY, 1);
 
-  // ---- 2. Uniform scale + centre: geometry always fills the canvas ----
+  // ---- 2. Uniform scale + center: geometry always fills the canvas ----
   const scale = Math.min((DIAGRAM_W - PAD * 2) / bw, (DIAGRAM_H - PAD * 2) / bh);
   const offX = (DIAGRAM_W - bw * scale) / 2 - minX * scale;
   const offY = (DIAGRAM_H - bh * scale) / 2 - minY * scale;
@@ -215,14 +211,43 @@ function renderSpecToSvg(spec, accentHex = "2563EB") {
     }
   }
 
+  // ---- 3. Labels: transform anchors, clamp into canvas, resolve overlaps ----
+  // Estimated final pixel widths keep labels fully on-canvas; a greedy vertical
+  // nudge separates labels whose boxes collide.
+  const placed = [];
   for (const el of labels) {
-    const txt = escapeXml(el.text || "");
-    if (!txt) continue;
-    const fx = tx(el.x);
-    const fy = ty(el.y);
+    const txt = String(el.text || "").trim();
+    if (!txt || typeof el.x !== 'number' || typeof el.y !== 'number') continue;
+    const tw = txt.length * LABEL_FONT * 0.6; // approx full text width in px
+    let fx = tx(el.x);
+    let fy = ty(el.y);
+    // Clamp inside canvas
+    fx = Math.max(PAD * 0.4 + tw / 2, Math.min(DIAGRAM_W - PAD * 0.4 - tw / 2, fx));
+    fy = Math.max(PAD * 0.5 + LABEL_FONT / 2, Math.min(DIAGRAM_H - PAD * 0.5 - LABEL_FONT / 2, fy));
+    placed.push({ el, txt, tw, fx, fy });
+  }
+
+  // Greedy de-overlap: if two label boxes intersect, push the later one below
+  const LABEL_H = LABEL_FONT * 1.25;
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const a = placed[i], b = placed[j];
+      const overlapX = Math.abs(a.fx - b.fx) < (a.tw + b.tw) / 2;
+      const overlapY = Math.abs(a.fy - b.fy) < LABEL_H;
+      if (overlapX && overlapY) {
+        a.fy = b.fy + LABEL_H + 2;
+        if (a.fy > DIAGRAM_H - PAD * 0.5) {
+          a.fy = b.fy - LABEL_H - 2; // no room below — go above instead
+        }
+      }
+    }
+  }
+
+  for (const { el, txt, fx, fy } of placed) {
+    const safeTxt = escapeXml(txt);
     // White halo behind text so labels stay readable over shapes
-    parts.push(`<text x="${fx}" y="${fy}" font-family="Arial, Helvetica, sans-serif" font-size="${LABEL_FONT}" font-weight="${el.bold ? '700' : '500'}" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round" text-anchor="middle" dominant-baseline="middle">${txt}</text>`);
-    parts.push(`<text x="${fx}" y="${fy}" font-family="Arial, Helvetica, sans-serif" font-size="${LABEL_FONT}" font-weight="${el.bold ? '700' : '500'}" fill="#${el.accent ? accentHex : STROKE}" text-anchor="middle" dominant-baseline="middle">${txt}</text>`);
+    parts.push(`<text x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${LABEL_FONT}" font-weight="${el.bold ? '700' : '500'}" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round" text-anchor="middle" dominant-baseline="middle">${safeTxt}</text>`);
+    parts.push(`<text x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${LABEL_FONT}" font-weight="${el.bold ? '700' : '500'}" fill="#${el.accent ? accentHex : STROKE}" text-anchor="middle" dominant-baseline="middle">${safeTxt}</text>`);
   }
 
   parts.push(`</svg>`);
@@ -257,12 +282,13 @@ Output ONLY a valid JSON object, no markdown:
 }
 
 STRICT RULES:
-1. Maximum 14 elements. ONE clear diagram, no decoration, no titles inside the diagram.
-2. Labels: max 3 words each, max 6 labels. Place each label OUTSIDE its shape, offset from edges/vertices so it never overlaps lines or other labels. "accent": true highlights the single most important label.
-3. Shapes must not overlap unless the concept requires it (e.g. area comparisons).
+1. 6 to 14 elements. ONE clear diagram, no decoration, no titles inside the diagram. The geometry itself must tell the story — use enough shapes to genuinely depict the concept (e.g. a "tightly packed solid" needs a 4x4 grid of touching circles, not 4; a gas needs 6-8 widely scattered circles).
+2. Maximum 4 labels, max 3 words each. NEVER write two labels meaning the same thing. Place each label clearly outside/away from shapes. "accent": true highlights the single most important label.
+3. Shapes must not overlap unless the concept requires it (e.g. area comparisons, packed particles).
 4. Use distinct fills for distinct meanings.
-5. For step/process flows: boxes left-to-right or top-to-bottom connected with arrows, label inside via a label element at the box center.
-6. Double-check coordinate math before answering.`;
+5. For step/process flows: boxes left-to-right or top-to-bottom connected with arrows, label at each box center.
+6. Spread geometry to use the full coordinate space — avoid clustering everything in one small area.
+7. Double-check coordinate math before answering.`;
 
   const userPrompt = `Create a diagram spec for: ${visualDescription || title}`;
 
