@@ -240,6 +240,17 @@ You must output a single, valid JSON object following this EXACT structure:
       ]
     },
     {
+      "type": "key_terms",
+      "title": "Key Vocabulary",
+      "bullets": [
+        "Term A: Short, concise definition of term A (max 12 words)",
+        "Term B: Short, concise definition of term B",
+        "Term C: Short, concise definition of term C",
+        "Term D: Short, concise definition of term D"
+      ],
+      "notes": "Teacher overview of key vocabulary terms introduced in this lesson."
+    },
+    {
       "type": "content",
       "title": "Assertion Header: A complete, single-sentence claim summarizing the core concept of this slide (e.g., 'Plants store glucose as starch to use for energy later.')",
       "bullets": [
@@ -337,7 +348,7 @@ You must output a single, valid JSON object following this EXACT structure:
 }
 
 CRITICAL RULES FOR CONTENT SYNTHESIS:
-1. Logical Arc: Title -> Objectives -> Agenda -> 4 to 6 Content Slides -> 3 to 5 unique Activity Slides -> Summary Slide.
+1. Logical Arc: Title -> Objectives -> Agenda -> Key Vocabulary (type 'key_terms', optional, only if key terms/vocabulary are introduced in the lesson) -> 4 to 6 Content Slides -> 3 to 5 unique Activity Slides -> Summary Slide.
 2. Cognitive Load: Max 1 core idea per slide. Bullet points must be short keywords/phrases (no full paragraphs). Cap bullet points at exactly 4 per slide.
 3. Assertion-Evidence Style: For every "content" slide, the header MUST be a full-sentence assertion claim (not a vague topic label like 'Introduction' or 'Starch').
 4. Delivery Support: Put the teacher's talking points, discussion prompts, and timing cues strictly in the 'notes' field (which will go to the speaker notes). Keep the slides clean.
@@ -345,7 +356,7 @@ CRITICAL RULES FOR CONTENT SYNTHESIS:
 6. Roadmap Slide Formatting:
    - The roadmap/agenda slide must list exactly the items corresponding to the actual slides that follow, in order.
    - Do not invent names of sections or activities that do not correspond to actual slides.
-   - Include: One item per content slide (using its actual topic), one item for each activity slide (using its actual activity type name), and one item for the summary.
+   - Include: One item for the Key Vocabulary slide (if present), one item per content slide (using its actual topic), one item for each activity slide (using its actual activity type name), and one item for the summary.
    - The roadmap items must be formatted as a numbered list (e.g. "1. Introduction", "2. Photosynthesis Process", "3. Multiple Choice Review", "4. Exit Ticket", "5. Summary").
 7. Mixed Activity Section:
    - Select between 3 and 5 activity slides to put in the activity section.

@@ -40,6 +40,17 @@ async function runLocalTest() {
         ]
       },
       {
+        "type": "key_terms",
+        "title": "Key Vocabulary",
+        "bullets": [
+          "Electoral College: A body of electors chosen to elect the President and Vice President.",
+          "Elector: A person selected to cast a vote in the Electoral College.",
+          "Popular Vote: The total number of individual votes cast by citizens in an election.",
+          "Swing State: A state where the political parties have similar levels of support."
+        ],
+        "notes": "Here are the key vocabulary terms we will encounter in today's lesson. Please write them down in your notebooks."
+      },
+      {
         "type": "content",
         "title": "The Electoral College was created as a constitutional compromise between Congress and the popular vote.",
         "bullets": [

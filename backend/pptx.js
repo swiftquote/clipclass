@@ -6,7 +6,7 @@ import pptxgen from 'pptxgenjs';
  * @param {string} visualDescription - Slide image description text
  * @returns {Promise<string|null>} Base64 image data URI string, or null on failure
  */
-async function generateImageFromImagen(visualDescription, deadline = Infinity) {
+async function generateImageFromImagen(visualDescription, visualType = 'photo', deadline = Infinity) {
   if (!visualDescription) return null;
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -17,7 +17,15 @@ async function generateImageFromImagen(visualDescription, deadline = Infinity) {
 
   const url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict";
   const cleanDescription = visualDescription.trim().replace(/[.,;:!?]+$/, "");
-  const finalPrompt = `A clean, professional presentation slide illustration of: ${cleanDescription}. Clear visual metaphor, high quality. Strictly no text, no labels, no words, no characters, no typography, no letters, no numbers. Pure visual design without annotations.`;
+  
+  const stylePrefix = visualType === 'photo' 
+    ? "A professional, high-resolution photograph of: "
+    : "A professional digital graphic illustration of: ";
+  const styleSuffix = visualType === 'photo'
+    ? "Crisp focus, detailed composition, professional photography. Strictly no text, no labels, no words, no characters, no typography, no letters, no numbers. Pure visual design without annotations."
+    : "Clean minimalist design, modern vector style, clear visual metaphor, high quality. Strictly no text, no labels, no words, no characters, no typography, no letters, no numbers. Pure visual design without annotations.";
+  
+  const finalPrompt = `${stylePrefix}${cleanDescription}. ${styleSuffix}`;
 
   const maxRetries = 2;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -46,7 +54,7 @@ async function generateImageFromImagen(visualDescription, deadline = Infinity) {
           parameters: {
             sampleCount: 1,
             aspectRatio: "16:9",
-            personGeneration: "dont_allow"
+            personGeneration: "allow_adult"
           }
         })
       });
@@ -507,7 +515,7 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           if (currentDelay > 0) {
             await new Promise(resolve => setTimeout(resolve, currentDelay));
           }
-          s.imageBase64 = await generateImageFromImagen(s.visualDescription, deadline);
+          s.imageBase64 = await generateImageFromImagen(s.visualDescription, s.visualType, deadline);
           s.imageAspectRatio = 16 / 9; // Imagen called with aspectRatio "16:9"
         })());
       }
@@ -595,6 +603,64 @@ export async function compilePresentation(slidesJSON, accentName = "Cobalt Blue"
           });
         }
         break;
+
+      case 'key_terms': {
+        // Section Header (38pt, bold, accent colour)
+        slide.addText(s.title || "Key Vocabulary", {
+          x: 0.8,
+          y: 0.5,
+          w: 11.7,
+          h: 0.8,
+          fontSize: 38,
+          bold: true,
+          color: accentHex,
+          fontFace: FONT_FAMILY,
+          fit: 'shrink'
+        });
+
+        if (s.bullets && s.bullets.length > 0) {
+          const listItems = [];
+          s.bullets.forEach((bullet, bIdx) => {
+            let term = "";
+            let definition = "";
+            
+            // Try to split on ":" or "-"
+            const match = bullet.match(/^([^:-]+)[:\-](.+)$/);
+            if (match) {
+              term = match[1].trim();
+              definition = match[2].trim();
+            } else {
+              definition = bullet.trim();
+            }
+
+            if (term) {
+              listItems.push({
+                text: term + ": ",
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: accentHex, bold: true, bullet: true, lineSpacing: 32 }
+              });
+              listItems.push({
+                text: definition + (bIdx < s.bullets.length - 1 ? "\n" : ""),
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bold: false }
+              });
+            } else {
+              listItems.push({
+                text: definition + (bIdx < s.bullets.length - 1 ? "\n" : ""),
+                options: { fontSize: 22, fontFace: FONT_FAMILY, color: TEXT_COLOR, bold: false, bullet: true, lineSpacing: 32 }
+              });
+            }
+          });
+
+          slide.addText(listItems, {
+            x: 0.8,
+            y: 1.7,
+            w: 11.7,
+            h: 5.3,
+            valign: 'top',
+            fit: 'shrink'
+          });
+        }
+        break;
+      }
 
       case 'agenda':
         // Section Header (38pt, bold, near-black or accent)
